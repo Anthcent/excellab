@@ -1,0 +1,34 @@
+{
+  "name": "excellab",
+  "private": true,
+  "version": "0.2.0",
+  "type": "module",
+  "description": "GridLab: Excel-style practice simulator with student login, exercises and exams.",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build:site": "node scripts/build.mjs",
+    "build:server": "tsc -p server/tsconfig.json",
+    "build": "npm run build:site && npm run build:server",
+    "dev": "node scripts/build.mjs && tsx watch server/src/main.ts",
+    "start": "node server/dist/main.js",
+    "test": "node --import tsx --test \"server/test/**/*.test.ts\"",
+    "typecheck": "tsc -p server/tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@electric-sql/pglite": "^0.3.0",
+    "@fastify/cookie": "^11.1.2",
+    "@fastify/static": "^8.0.0",
+    "@node-rs/argon2": "^2.2.2",
+    "fastify": "^5.12.5",
+    "pg": "^8.23.1",
+    "zod": "^4.6.5"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "@types/pg": "^8.23.1",
+    "tsx": "^4.23.15",
+    "typescript": "^5.9.3"
+  }
+}

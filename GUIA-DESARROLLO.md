@@ -8,26 +8,52 @@ Esta guía explica cómo está construido el simulador y cómo convertir un bot�
 
 | Archivo | Para qué sirve |
 | --- | --- |
-| `gridlab.html` | Código fuente. Es el archivo que se edita y el que se publica como artifact. No lleva `<!doctype>`, `<html>` ni `<body>`: el publicador los agrega. |
-| `index.html` | Copia lista para abrir con doble clic o subir a cualquier hosting. Se genera a partir de `gridlab.html` (ver la sección 9). |
+| `src/style.css` | Todo el CSS. |
+| `src/body.html` | El HTML de la aplicación (cinta, barra de fórmulas, cuadrícula, diálogos). |
+| `src/engine.js` | Motor de fórmulas, **sin DOM**: direcciones, valores, parser, evaluación y biblioteca de funciones. Lo usa el navegador (`window.GridEngine`) y el servidor (para calificar). |
+| `src/app.js` | La interfaz: cuadrícula, edición, cinta, teclado, modo teléfono. Usa el motor. |
+| `src/template.html` | Plantilla del documento (`doctype`, `<head>`, favicon, metadatos). |
+| `scripts/build.mjs` | Une todo en un solo HTML (ver la sección 10). |
+| `index.html` | **Generado.** Documento completo que se abre con doble clic o se sube a cualquier hosting. |
+| `gridlab.html` | **Generado.** Fragmento sin `<!doctype>`, `<html>` ni `<body>` para publicar como artifact (el publicador los agrega). |
+| `public/index.html` | **Generado** (no se sube a Git). Lo sirve el servidor. |
+| `server/` | API (Fastify + TypeScript): login, ejercicios, exámenes y calificación. Ver `README.md`. |
 | `GUIA-DESARROLLO.md` | Esta guía. |
 
-Todo el sistema vive en un solo archivo: primero el CSS (`<style>`), después el HTML y al final el JavaScript (`<script>`). No usa frameworks ni dependencias. Solo carga desde Google Fonts la fuente de íconos Material Symbols, que usa el tema Blanco.
+**No edites `index.html` ni `gridlab.html` a mano**: se sobrescriben con `npm run build:site`. El sitio no usa frameworks. Solo carga desde Google Fonts la fuente de íconos Material Symbols, que usa el tema Blanco; si no se puede cargar (sin conexión), la página sigue funcionando y los íconos se muestran como texto pequeño.
 
 ## 2. Mapa del código
 
-El script está dividido en secciones con comentarios de este tipo: `/* ================= Nombre ================= */`. Puedes buscar cada nombre con Ctrl+F.
+El código está dividido en secciones con comentarios de este tipo: `/* ================= Nombre ================= */`. Puedes buscar cada nombre con Ctrl+F.
+
+**`src/engine.js`** (sin DOM; se usa igual en el navegador y en Node):
 
 | Sección | Qué contiene |
 | --- | --- |
-| Preferences | Tema (`prefs.skin`), separador decimal (`DEC`), modo teléfono. |
 | Addressing | Conversión entre `A1` y fila/columna: `A(r,c)`, `parseA('B4')`. |
-| Values | Tipos de valor, errores (`E.div()`, `E.val()`…), conversión de texto a número. |
+| Values | Tipos de valor, errores (`E.div()`, `E.val()`…), conversión de texto a número, `cmp`. |
 | Formula parser | Convierte el texto de una fórmula en un árbol (`parseFormula`). |
-| Evaluation | Calcula las celdas (`cellValue`) con caché y detección de referencias circulares. |
+| Evaluation | Calcula las celdas (`cellValue`) con caché y detección de referencias circulares. Una referencia fuera de la hoja (más allá de `COLS`/`ROWS`) da `#¡REF!`. |
 | Function library | Todas las funciones de fórmula, definidas con `def(...)`. |
 | Display formatting | Cómo se ve un valor según su formato (moneda, %, fecha…). |
-| Workbook state | Libro de ejemplo, guardado en `localStorage`, deshacer/rehacer. |
+| Engine helpers | `recalc`, `setWorkbook`, `evalFormulaText`; `sanitizeWorkbook` (validador de libros, también lo usa el servidor). |
+
+El motor **no tiene variables globales**: cada instancia guarda su estado en `S` (`S.wb` libro, `S.cur` hoja activa, `S.DEC` separador decimal):
+
+```js
+const eng = GridEngine.createEngine({ workbook, decimal: ',' });
+eng.cellValue(0, 1, 2);                 // hoja 0, fila 1, columna C (índices desde 0)
+eng.evalFormulaText('=SUMA(A1:A3)', 0);
+```
+
+En `app.js` ese objeto es `ST` (`ST.wb`, `ST.cur`, `ST.DEC`); el resto de nombres del motor se traen con una desestructuración al inicio del archivo. **Si usas en `app.js` una función nueva del motor, agrégala a esa lista** (y expórtala al final de `engine.js`).
+
+**`src/app.js`** (interfaz):
+
+| Sección | Qué contiene |
+| --- | --- |
+| Preferences | Tema (`prefs.skin`), separador decimal, modo teléfono. |
+| Workbook state | Libro de ejemplo, guardado en `localStorage` (con versión `SCHEMA` y validación al cargar), deshacer/rehacer. |
 | Grid / Overlay | Dibujo de la cuadrícula, la selección y las referencias de color. |
 | Editing | Edición de celdas, autocompletado, modo Señalar, F4. |
 | Clipboard, fill, sort | Copiar, pegar, rellenar, ordenar. |
@@ -43,7 +69,7 @@ El script está dividido en secciones con comentarios de este tipo: `/* ========
 ## 3. Modelo de datos
 
 ```js
-wb = {
+ST.wb = {
   name: 'Libro1',
   sheets: [
     {
@@ -63,7 +89,7 @@ wb = {
 - **`v`** es el contenido crudo de la celda. Se guarda en formato **canónico**: punto decimal y coma entre argumentos (`=SI(A1>1.5,"Sí","No")`). La barra de fórmulas lo muestra en el formato regional que elija el usuario, con `toLocalFormula()` y `toCanonFormula()`.
 - **`s`** es el estilo. Claves: `b`, `i`, `u`, `st` (tachado), `font`, `size`, `color`, `fill`, `ha` (left/center/right), `va` (top/middle/bottom), `wrap`, `ind` (sangría), `fmt`, `dec` (decimales), `bt`/`bb`/`bl`/`br` (bordes).
 - **`str: 1`** marca un texto que, de otro modo, se leería como número.
-- **`cur`** es el índice de la hoja activa y **`sheet()`** devuelve esa hoja.
+- **`ST.cur`** es el índice de la hoja activa y **`sheet()`** devuelve esa hoja (el libro es `ST.wb`).
 - **`sel`** es la selección: `sel.ar`/`sel.ac` son la celda activa y `rng()` devuelve el rango `{r1,c1,r2,c2}`.
 
 Filas y columnas empiezan en **0**: la fila 0 es la fila 1 de la hoja y la columna 0 es la columna A.
@@ -106,7 +132,7 @@ Al pulsar un botón se ejecuta `run(accion, texto, arg)`, que busca `ACTIONS[acc
 5. **Si es un estado activado/desactivado**, agrega `{tog:'clave'}` al botón y resuelve la clave en `updateRibbonState()`, como ya se hace con `'filter'` y `'showFormulas'`.
 6. **Si está en un menú**, agrega `a:'removeDups'` a la opción correspondiente en `MENUS`.
 7. **Prueba**: en PC (clic, Ctrl+Z, recargar la página) y en un teléfono horizontal (la cinta se abre desde una pestaña y se cierra sola después de la acción).
-8. **Genera `index.html` de nuevo** (sección 9).
+8. **Compila de nuevo** con `npm run build:site` (sección 10).
 
 En la aplicación, **Archivo > Desarrollo** muestra cuántos botones tienen función real. El botón *Resaltar los botones sin función* les pone un borde rojo punteado para encontrarlos rápido.
 
@@ -135,11 +161,11 @@ function filterToggle(){
   const R = region(sel.ar, sel.ac);                          // tabla alrededor de la celda activa
   if (R.r1 === R.r2) return toast('Selecciona una celda dentro de una tabla con datos.');
   if (sel.ar === R.r1) return toast('Selecciona una celda con datos (no el encabezado) para filtrar por ese valor.');
-  const target = cellValue(cur, sel.ar, sel.ac);
+  const target = cellValue(ST.cur, sel.ar, sel.ac);
   pushUndo();
   sh.hiddenRows = [];
   for (let r = R.r1 + 1; r <= R.r2; r++)                     // R.r1 es el encabezado
-    if (cmp(cellValue(cur, r, sel.ac), target) !== 0) sh.hiddenRows.push(r);
+    if (cmp(cellValue(ST.cur, r, sel.ac), target) !== 0) sh.hiddenRows.push(r);
   changed();
   toast(`Filtro aplicado: se ocultaron ${sh.hiddenRows.length} filas.`);
 }
@@ -179,7 +205,7 @@ else if (t === 'filter') on = !!(sheet().hiddenRows || []).length;
 
 ## 7. Agregar una función de fórmula
 
-Todas las funciones se declaran con `def`:
+Todas las funciones viven en `src/engine.js` (sección *Function library*) y se declaran con `def`:
 
 ```js
 def(nombreIngles, nombreEspanol, categoria, 'argumentos, separados, por coma', 'Descripción.', implementacion);
@@ -198,6 +224,7 @@ def('SIGN','SIGNO',MATH,'número','Devuelve el signo de un número: 1 si es posi
   - `nums(a)` → todos los números de los argumentos.
   - `makeCrit(a[i])` → criterio tipo `">5"` (como en CONTAR.SI).
 - **Errores**: lanza `throw E.div()`, `E.val()`, `E.ref()`, `E.na()` o `E.num()`. Se muestran como `#¡DIV/0!`, `#¡VALOR!`, etc.
+- Como el motor es el mismo en el navegador y en el servidor, una función nueva también queda disponible para calificar ejercicios. Agrega una prueba en `server/test/engine.test.ts`.
 - Con solo declararla, la función aparece en el autocompletado, en Insertar función y en el menú de su categoría.
 
 ## 8. Íconos
@@ -222,17 +249,26 @@ XI.mi_icono = `<rect x="3" y="3" width="26" height="26" class="p"/><path d="M8 1
 - El alto de las teclas se controla con la variable CSS `--kh`: 33 px en horizontal y 42 px en vertical.
 - La barra de acciones rápidas (`#pbar`) es HTML. Para agregar un botón, pon un `data-pa="accion"`: si coincide con una clave de `ACTIONS`, se ejecuta sola.
 
-## 10. Generar `index.html` y publicar
+## 10. Compilar y publicar
 
-Después de editar `gridlab.html`, regenera la copia autónoma desde Git Bash, dentro de la carpeta `excel-simulator`:
+Edita solo los archivos de `src/` (`style.css`, `body.html`, `engine.js`, `app.js`, `template.html`). Después, dentro de la carpeta `excellab`, ejecuta:
 
 ```bash
-{ printf '<!doctype html>\n<html lang="es">\n<head>\n<meta charset="utf-8">\n<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">\n'
-  awk '/^<\/style>/{print; print "</head>\n<body>"; next} {print}' gridlab.html
-  printf '</body>\n</html>\n'; } > index.html
+npm run build:site     # solo la página (no necesita nada más que Node)
+npm run build          # la página + el servidor (TypeScript)
 ```
 
-Si trabajas con Claude Code, pídele que vuelva a publicar `gridlab.html` en el mismo artifact para conservar el link.
+`scripts/build.mjs` une todo en un solo HTML y escribe tres archivos:
+
+| Salida | Uso |
+| --- | --- |
+| `index.html` | Documento completo (con `<!doctype>`, `lang="es"`, favicon y metadatos). Se abre con doble clic, sin servidor, y funciona igual que antes (práctica libre sin login). Se sube a Git. |
+| `public/index.html` | La misma página, servida por el servidor Fastify. No se sube a Git. |
+| `gridlab.html` | Fragmento sin `<!doctype>`, `<html>`, `<head>` ni `<body>` para publicar como artifact. Se sube a Git. |
+
+Como el navegador abre `index.html` con `file://`, el motor y la interfaz van en `<script>` normales (nada de `type="module"`). Si trabajas con Claude Code, pídele que vuelva a publicar `gridlab.html` en el mismo artifact para conservar el link.
+
+**Antes de subir cambios**: `npm run build:site` (para que `index.html` y `gridlab.html` reflejen `src/`) y `npm test` (pruebas del motor y del servidor).
 
 ## 11. Qué funciona hoy y qué es simulado
 

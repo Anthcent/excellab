@@ -1,0 +1,134 @@
+<div id="app">
+  <header class="titlebar">
+    <div class="tb-left">
+      <span class="applogo" aria-hidden="true"><svg width="22" height="22" viewBox="0 0 22 22"><rect class="lg-bg" x="1" y="1" width="20" height="20" rx="4"/><path class="lg-ink" d="M1 8h20M1 14h20M8 1v20M14 1v20" stroke-width="1.6" fill="none"/><rect class="lg-fill" x="8" y="8" width="6" height="6"/></svg></span>
+      <div class="autosave"><span>Autoguardado</span><button id="autosave" class="switch on" role="switch" aria-checked="true" aria-label="Autoguardado"><i></i></button></div>
+      <button class="qat" data-act="save" title="Guardar (Ctrl+G)" aria-label="Guardar"><span class="ms">save</span></button>
+      <button class="qat" data-act="undo" title="Deshacer (Ctrl+Z)" aria-label="Deshacer"><span class="ms">undo</span></button>
+      <button class="qat" data-act="redo" title="Rehacer (Ctrl+Y)" aria-label="Rehacer"><span class="ms">redo</span></button>
+    </div>
+    <div class="tb-title"><span id="bookName">Libro1</span> <span class="sub" id="saveState">· Guardado en este navegador</span></div>
+    <label class="tb-search"><span class="ms">search</span><input id="search" placeholder="Buscar funciones (Alt+Q)" autocomplete="off"></label>
+    <div class="tb-right">
+      <button data-act="toggleSkin" data-label="Cambiar tema" title="Cambiar tema: Excel / Blanco" aria-label="Cambiar tema"><span class="ms">palette</span><span class="hide-sm" id="skinLbl">Tema: Excel</span></button>
+      <span class="avatar" title="Estudiante">ES</span>
+    </div>
+  </header>
+
+  <nav class="tabs" id="tabs" aria-label="Pestañas de la cinta"></nav>
+  <section class="ribbon" id="ribbon" aria-label="Cinta de opciones"></section>
+
+  <div class="fbar" id="fbarRow">
+    <input id="nameBox" aria-label="Cuadro de nombres" value="A1" autocomplete="off" spellcheck="false">
+    <div class="fx-btns">
+      <button id="fxCancel" title="Cancelar (Esc)" aria-label="Cancelar" disabled><span class="ms">close</span></button>
+      <button id="fxOk" title="Introducir" aria-label="Introducir" disabled><span class="ms">check</span></button>
+      <button id="fxBtn" title="Insertar función" aria-label="Insertar función">fx</button>
+    </div>
+    <input id="fbar" aria-label="Barra de fórmulas" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false">
+  </div>
+  <div class="keys" id="keys" aria-label="Teclas para fórmulas">
+    <button data-k="=">=</button><button data-k="(">(</button><button data-k=")">)</button><button data-k=":">:</button><button data-k="sep" id="sepKey">;</button><button data-k="$">$</button><button data-k='"'>"</button><button data-k="+">+</button><button data-k="-">−</button><button data-k="*">×</button><button data-k="/">÷</button><button data-k="^">^</button><button data-k="&amp;">&amp;</button><button data-k="&lt;">&lt;</button><button data-k="&gt;">&gt;</button><button data-k="%">%</button><button data-k="fx" title="Insertar función"><i style="font-family:Cambria,Georgia,serif">fx</i></button><button data-k="esc" title="Cancelar"><span class="ms">close</span></button><button data-k="ok" class="go" title="Introducir"><span class="ms">check</span></button><button data-k="gridkb" title="Volver al teclado GridLab"><span class="ms">keyboard_alt</span></button>
+  </div>
+
+  <main class="gridwrap" id="scroller">
+    <div class="sheet" id="sheetEl">
+      <table id="grid"></table>
+      <div id="overlay">
+        <div class="ov rfill" id="f1" hidden></div><div class="ov rfill" id="f2" hidden></div><div class="ov rfill" id="f3" hidden></div><div class="ov rfill" id="f4" hidden></div>
+        <div class="ov" id="refLayer"></div>
+        <div class="ov" id="ants" hidden></div>
+        <div class="ov" id="fillPrev" hidden></div>
+        <div class="ov" id="rangeBox"></div>
+        <div class="ov" id="handle" title="Arrastra para rellenar"></div>
+      </div>
+      <input id="cellEditor" hidden autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" aria-label="Editor de celda">
+    </div>
+  </main>
+
+  <div class="sheetbar">
+    <div class="sb-nav"><button id="tabPrev" aria-label="Hoja anterior"><span class="ms">chevron_left</span></button><button id="tabNext" aria-label="Hoja siguiente"><span class="ms">chevron_right</span></button></div>
+    <div class="stabs" id="sheetTabs"></div>
+    <button class="addsheet" id="addSheet" title="Nueva hoja" aria-label="Nueva hoja"><span class="ms">add</span></button>
+  </div>
+  <footer class="status">
+    <span id="mode">Listo</span><span id="circ"></span>
+    <span class="spacer"></span>
+    <span id="stats"></span>
+    <span class="views"><button class="on" data-act="viewNormal" data-label="Normal" title="Normal"><span class="ms">grid_on</span></button><button data-act="" data-label="Diseño de página" title="Diseño de página"><span class="ms">auto_stories</span></button><button data-act="" data-label="Vista previa de salto de página" title="Vista previa de salto de página"><span class="ms">view_agenda</span></button></span>
+    <span class="zoom"><button id="zoomOut" aria-label="Alejar"><span class="ms">remove</span></button><input type="range" id="zoomRange" min="10" max="400" value="100" aria-label="Zoom"><button id="zoomIn" aria-label="Acercar"><span class="ms">add</span></button><span id="zoomLbl">100%</span></span>
+  </footer>
+  <div class="pbar" id="pbar" aria-label="Acciones rápidas">
+    <button data-pa="sheets" class="sheetbtn" title="Hojas del libro"><span class="ms">tab</span><span id="pbSheet">Hoja1</span><span class="ms" style="font-size:16px">expand_more</span></button>
+    <button data-pa="type" class="go" title="Escribir en la celda (reemplaza el contenido)"><span class="ms">keyboard</span>Escribir</button>
+    <button data-pa="edit" title="Modificar la celda (F2)"><span class="ms">edit</span>Editar</button>
+    <button data-pa="eq" title="Empezar una fórmula"><b style="font-size:17px">=</b></button>
+    <button data-pa="sum" title="Autosuma"><b style="font-size:17px">Σ</b></button>
+    <button data-pa="fx" title="Insertar función"><i style="font:italic 700 15px Cambria,Georgia,serif">fx</i></button>
+    <i class="sep"></i>
+    <button data-pa="copy" title="Copiar"><span class="ms">content_copy</span></button>
+    <button data-pa="cut" title="Cortar"><span class="ms">content_cut</span></button>
+    <button data-pa="paste" title="Pegar"><span class="ms">content_paste</span></button>
+    <button data-pa="fillHandle" title="Rellenar con el controlador"><span class="ms">drag_pan</span>Rellenar</button>
+    <button data-pa="clear" title="Borrar contenido"><span class="ms">ink_eraser</span></button>
+    <i class="sep"></i>
+    <button data-pa="undo" title="Deshacer"><span class="ms">undo</span></button>
+    <button data-pa="redo" title="Rehacer"><span class="ms">redo</span></button>
+    <i class="sep"></i>
+    <button data-pa="extend" title="Extender la selección con las flechas"><span class="ms">select_all</span>Rango</button>
+    <button data-pa="left" title="Izquierda"><span class="ms">chevron_left</span></button>
+    <button data-pa="up" title="Arriba"><span class="ms">keyboard_arrow_up</span></button>
+    <button data-pa="down" title="Abajo"><span class="ms">keyboard_arrow_down</span></button>
+    <button data-pa="right" title="Derecha"><span class="ms">chevron_right</span></button>
+    <i class="sep"></i>
+    <button data-pa="ribbon" title="Mostrar la cinta de opciones"><span class="ms">tune</span>Cinta</button>
+    <button data-pa="file" title="Archivo"><span class="ms">menu</span>Archivo</button>
+  </div>
+  <div class="kb" id="kb" aria-label="Teclado GridLab">
+    <div class="kb-top" id="kbTop"></div>
+    <div class="kb-body"><div class="kb-main" id="kbMain"></div><div class="kb-side" id="kbSide"></div></div>
+  </div>
+</div>
+
+<div id="popup" class="popup" hidden></div>
+<div id="ac" class="ac" hidden><div class="ac-list" id="acList"></div><div class="ac-desc" id="acDesc"></div></div>
+<div id="sig" class="sig" hidden></div>
+<div id="toast" class="toast" hidden role="status"></div>
+
+<div id="backstage" hidden>
+  <nav class="bs-nav" id="bsNav">
+    <button data-bs="back" title="Volver"><span class="ms">arrow_back</span></button>
+    <button data-bs="home" class="on"><span class="ms">home</span><span class="t">Inicio</span></button>
+    <button data-bs="new"><span class="ms">note_add</span><span class="t">Nuevo</span></button>
+    <button data-bs="open"><span class="ms">folder_open</span><span class="t">Abrir</span></button>
+    <div class="sep"></div>
+    <button data-bs="info"><span class="ms">info</span><span class="t">Información</span></button>
+    <button data-bs="save"><span class="ms">save</span><span class="t">Guardar</span></button>
+    <button data-bs="saveas"><span class="ms">save_as</span><span class="t">Guardar como</span></button>
+    <button data-bs="print"><span class="ms">print</span><span class="t">Imprimir</span></button>
+    <button data-bs="share"><span class="ms">share</span><span class="t">Compartir</span></button>
+    <button data-bs="export"><span class="ms">ios_share</span><span class="t">Exportar</span></button>
+    <button data-bs="close"><span class="ms">close</span><span class="t">Cerrar</span></button>
+    <div class="push"></div>
+    <button data-bs="dev"><span class="ms">code</span><span class="t">Desarrollo</span></button>
+    <button data-bs="account"><span class="ms">account_circle</span><span class="t">Cuenta</span></button>
+    <button data-bs="options"><span class="ms">settings</span><span class="t">Opciones</span></button>
+  </nav>
+  <section class="bs-body" id="bsBody"></section>
+</div>
+
+<div id="fnDialog" class="modal" hidden role="dialog" aria-modal="true" aria-labelledby="fnTitle">
+  <div class="dlg">
+    <header><h2 id="fnTitle">Insertar función</h2><button class="x" data-close aria-label="Cerrar"><span class="ms">close</span></button></header>
+    <label for="fnSearch">Buscar una función:</label>
+    <div class="row"><input id="fnSearch" placeholder="Escribe una breve descripción y selecciona Ir" autocomplete="off"><button class="btn" id="fnGo">Ir</button></div>
+    <label for="fnCat">O seleccionar una categoría:</label>
+    <select id="fnCat"></select>
+    <label>Seleccionar una función:</label>
+    <div id="fnList" class="fnlist" role="listbox" aria-label="Funciones"></div>
+    <p id="fnSig" class="fsig"></p>
+    <p id="fnDesc" class="fdesc"></p>
+    <p id="fnEs" class="fes"></p>
+    <footer><button class="btn primary" id="fnOk">Aceptar</button><button class="btn" data-close>Cancelar</button></footer>
+  </div>
+</div>

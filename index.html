@@ -4,9 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>GridLab Hoja de práctica</title>
+<meta name="description" content="GridLab: simulador de hoja de cálculo en español para practicar fórmulas de Excel, también desde el teléfono.">
+<meta name="theme-color" content="#107c41">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 22 22'%3E%3Crect x='1' y='1' width='20' height='20' rx='4' fill='%23107c41'/%3E%3Cpath d='M1 8h20M1 14h20M8 1v20M14 1v20' stroke='%23fff' stroke-width='1.6' fill='none'/%3E%3Crect x='8' y='8' width='6' height='6' fill='%23fff'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0&display=block">
+<link id="msfont" rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20,400,0,0&display=block">
+<script>
+/* If the icon font cannot be fetched (offline), switch to a text fallback for icons. */
+(function(){
+  var d=document.documentElement, bad=function(){ d.classList.add('no-icons'); };
+  var l=document.getElementById('msfont'); if(l) l.addEventListener('error', bad);
+  window.addEventListener('load', function(){
+    if(!document.fonts || !document.fonts.load){ if(navigator.onLine===false) bad(); return; }
+    document.fonts.load('18px "Material Symbols Outlined"', 'home').then(function(f){ if(!f || !f.length) bad(); }, bad);
+  });
+})();
+</script>
 <style>
 :root{
   --z:1;
@@ -404,10 +418,12 @@ body.show-na .rb[data-act=""]:not([data-menu]),body.show-na .launch{outline:1.5p
 @media (prefers-reduced-motion:reduce){
   *{animation:none!important;transition:none!important}
 }
+
+/* Offline fallback: when the Material Symbols font cannot load, show the icon name as small text instead of broken boxes. */
+html.no-icons .ms{font-family:system-ui,"Segoe UI",Arial,sans-serif;font-size:10px!important;letter-spacing:0;line-height:1.1;max-width:46px;overflow:hidden;text-overflow:ellipsis;font-feature-settings:normal}
 </style>
 </head>
 <body>
-
 <div id="app">
   <header class="titlebar">
     <div class="tb-left">
@@ -542,28 +558,122 @@ body.show-na .rb[data-act=""]:not([data-menu]),body.show-na .launch{outline:1.5p
     <footer><button class="btn primary" id="fnOk">Aceptar</button><button class="btn" data-close>Cancelar</button></footer>
   </div>
 </div>
-
 <script>
-(() => {
-'use strict';
-const ROWS = 200, COLS = 26, DEF_W = 64, HEAD_W = 40;
-const $ = s => document.querySelector(s);
-const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
-const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+/* =====================================================================
+   GridLab formula engine (DOM-free)
 
-/* ================= Preferences (skin + regional settings) ================= */
-const PREF_KEY='gridlab.prefs.v1';
-const prefs={skin:'excel', region:'auto'};
-try{ Object.assign(prefs, JSON.parse(localStorage.getItem(PREF_KEY))||{}); }catch(e){}
-const savePrefs = () => { try{ localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); }catch(e){} };
-const autoComma = (() => { try{ return (1.5).toLocaleString().includes(','); }catch(e){ return true; } })();
-let DEC = ',';
-function applyRegion(){ DEC = prefs.region==='dot' ? '.' : prefs.region==='comma' ? ',' : (autoComma ? ',' : '.'); }
-applyRegion();
-const SEP = () => DEC===',' ? ';' : ',';
-const locNum = s => DEC===',' ? s.replace(/[.,]/g, m => m==='.' ? ',' : '.') : s;
-document.documentElement.dataset.skin = prefs.skin;
-let isPhone=false, nativeKb=false;
+   One file, two uses:
+     - Browser: loaded with a plain <script>; exposes window.GridEngine.
+     - Node (server grading): the server wrapper evaluates this file and
+       reads the same GridEngine object.
+
+   Usage:
+     const eng = GridEngine.createEngine({ workbook, decimal: ',' });
+     eng.cellValue(sheetIndex, row, col);       // rows/cols are 0-based
+     eng.evalFormulaText('=SUMA(A1:A3)', 0);
+   ===================================================================== */
+(function (root) {
+'use strict';
+
+const ROWS = 200, COLS = 26;
+
+/* ---------- Workbook sanitizer (shared by the browser and the server) ---------- */
+const STYLE_SPEC = {
+  b: 'bool', i: 'bool', u: 'bool', st: 'bool', wrap: 'bool',
+  bt: 'flag', bb: 'flag', bl: 'flag', br: 'flag',
+  font: 'str', ha: 'str', va: 'str', fmt: 'str',
+  size: 'num', ind: 'num', dec: 'num',
+  color: 'color', fill: 'color',
+};
+function cleanStyle(s) {
+  if (!s || typeof s !== 'object' || Array.isArray(s)) return null;
+  const out = {};
+  for (const k of Object.keys(STYLE_SPEC)) {
+    const v = s[k];
+    if (v === undefined || v === null) continue;
+    switch (STYLE_SPEC[k]) {
+      case 'bool': if (v) out[k] = true; break;
+      case 'flag': if (v) out[k] = 1; break;
+      case 'str': if (typeof v === 'string' && v.length <= 40) out[k] = v; break;
+      case 'num': if (typeof v === 'number' && isFinite(v)) out[k] = Math.max(0, Math.min(400, v)); break;
+      case 'color': if (typeof v === 'string' && v.length <= 40 && /^[#\w(),.% -]+$/.test(v)) out[k] = v; break;
+    }
+  }
+  return Object.keys(out).length ? out : null;
+}
+const isPlain = o => o !== null && typeof o === 'object' && !Array.isArray(o);
+const ADDR_RE = /^([A-Z]{1,3})(\d{1,4})$/;
+function addrInBounds(key) {
+  const m = ADDR_RE.exec(key);
+  if (!m) return false;
+  let c = 0;
+  for (const ch of m[1]) c = c * 26 + ch.charCodeAt(0) - 64;
+  c -= 1;
+  const r = +m[2] - 1;
+  return r >= 0 && r < ROWS && c >= 0 && c < COLS;
+}
+const toInt = (v, lo, hi, d) => (typeof v === 'number' && isFinite(v)) ? Math.max(lo, Math.min(hi, Math.trunc(v))) : d;
+
+/* Returns a clean copy of a stored/received workbook, or throws Error. */
+function sanitizeWorkbook(raw, limits) {
+  const lim = Object.assign({ maxSheets: 50, maxCells: 20000, maxStr: 2000 }, limits);
+  if (!isPlain(raw) || !Array.isArray(raw.sheets) || !raw.sheets.length) throw new Error('invalid workbook');
+  if (raw.sheets.length > lim.maxSheets) throw new Error('too many sheets');
+  let cellCount = 0;
+  const seen = new Set();
+  const sheets = raw.sheets.map((sh, idx) => {
+    if (!isPlain(sh)) throw new Error('invalid sheet');
+    let name = typeof sh.name === 'string' ? sh.name.trim().slice(0, 31) : '';
+    if (!name) name = 'Hoja' + (idx + 1);
+    let unique = name, n = 2;
+    while (seen.has(unique.toLowerCase())) unique = name.slice(0, 27) + ' (' + (n++) + ')';
+    seen.add(unique.toLowerCase());
+    const cells = {};
+    const src = isPlain(sh.cells) ? sh.cells : {};
+    for (const key of Object.keys(src)) {
+      if (!addrInBounds(key)) continue;
+      const c = src[key];
+      if (!isPlain(c)) continue;
+      let v = c.v;
+      if (typeof v === 'number') v = isFinite(v) ? String(v) : '';
+      else if (typeof v === 'boolean') v = v ? 'VERDADERO' : 'FALSO';
+      else if (typeof v !== 'string') v = '';
+      if (v.length > lim.maxStr) throw new Error('cell too long');
+      const cell = { v };
+      if (c.str) cell.str = 1;
+      const s = cleanStyle(c.s);
+      if (s) cell.s = s;
+      if (v === '' && !s) continue;
+      if (++cellCount > lim.maxCells) throw new Error('too many cells');
+      cells[key] = cell;
+    }
+    const colW = {};
+    if (isPlain(sh.colW)) {
+      for (const k of Object.keys(sh.colW)) {
+        const ci = +k, w = sh.colW[k];
+        if (Number.isInteger(ci) && ci >= 0 && ci < COLS && typeof w === 'number' && isFinite(w)) colW[ci] = Math.max(10, Math.min(1000, Math.round(w)));
+      }
+    }
+    const s0 = isPlain(sh.sel) ? sh.sel : {};
+    const ar = toInt(s0.ar, 0, ROWS - 1, 0), ac = toInt(s0.ac, 0, COLS - 1, 0);
+    const out = { name: unique, cells, colW, sel: { ar, ac, fr: toInt(s0.fr, 0, ROWS - 1, ar), fc: toInt(s0.fc, 0, COLS - 1, ac) } };
+    if (Array.isArray(sh.hiddenRows)) {
+      const hr = sh.hiddenRows.filter(x => Number.isInteger(x) && x >= 0 && x < ROWS);
+      if (hr.length) out.hiddenRows = hr;
+    }
+    return out;
+  });
+  const name = typeof raw.name === 'string' && raw.name.trim() ? raw.name.trim().slice(0, 100) : 'Libro1';
+  return { name, sheets };
+}
+
+function createEngine(opts) {
+opts = opts || {};
+/* Mutable engine state. The UI reads/writes S.wb, S.cur and S.DEC. */
+const S = { wb: opts.workbook || { name: 'Libro1', sheets: [] }, cur: opts.current || 0, DEC: opts.decimal || ',', budget: Infinity };
+const locNum = s => S.DEC===',' ? s.replace(/[.,]/g, m => m==='.' ? ',' : '.') : s;
+/* Work budget: the server sets S.budget so a heavy workbook cannot hang a request. */
+function spend(n){ if((S.budget -= n) < 0){ const e = new Error('budget exceeded'); e.budget = true; throw e; } }
 
 /* ================= Addressing ================= */
 function colName(c){ let s=''; c++; while(c>0){ const m=(c-1)%26; s=String.fromCharCode(65+m)+s; c=Math.floor((c-1)/26); } return s; }
@@ -602,7 +712,7 @@ function parseLiteral(raw, fmt, mode){
   const t=raw.trim(); const up=t.toUpperCase();
   if(up==='TRUE'||up==='VERDADERO') return {v:true};
   if(up==='FALSE'||up==='FALSO') return {v:false};
-  const dec = mode==='canon' ? '.' : DEC, grp = dec==='.' ? ',' : '.';
+  const dec = mode==='canon' ? '.' : S.DEC, grp = dec==='.' ? ',' : '.';
   const qd='\\'+dec, qg='\\'+grp;
   const m=new RegExp(`^([+-]?)(\\$?)(\\d{1,3}(?:${qg}\\d{3})+|\\d*)(${qd}\\d+)?(%?)$`).exec(t);
   if(m && /\d/.test(t) && !(m[2] && m[5])){
@@ -777,11 +887,11 @@ const SPLIT_RE = /("(?:[^"]|"")*"|'(?:[^']|'')*')/;
 const mapOutside = (f, fn) => f.split(SPLIT_RE).map((s,i)=> i%2 ? s : fn(s)).join('');
 const NUM_LB = '(?<![A-Za-z0-9_$.\\u00C0-\\u024F])';
 function toCanonFormula(f){
-  if(DEC==='.') return mapOutside(f, s=>s.replace(/;/g,','));
+  if(S.DEC==='.') return mapOutside(f, s=>s.replace(/;/g,','));
   return mapOutside(f, s=>s.replace(/;/g,'\u0001').replace(new RegExp(NUM_LB+'(\\d+),(\\d+)','g'),'$1.$2').replace(/\u0001/g,','));
 }
 function toLocalFormula(f){
-  if(!f || f[0]!=='=' || DEC==='.') return f;
+  if(!f || f[0]!=='=' || S.DEC==='.') return f;
   return mapOutside(f, s=>s.replace(/,/g,';').replace(new RegExp(NUM_LB+'(\\d+)\\.(\\d+)','g'),'$1,$2'));
 }
 function shiftFormula(f, dr, dc){
@@ -808,26 +918,25 @@ function refsInFormula(text){
 }
 
 /* ================= Evaluation ================= */
-let wb, cur=0;
-const sheet = () => wb.sheets[cur];
+const sheet = () => S.wb.sheets[S.cur];
 const cache=new Map(), calcing=new Set(), circular=new Set(), astCache=new Map();
 function getAst(src){
   let a=astCache.get(src);
   if(a===undefined){ try{ a=parseFormula(src.slice(1)); }catch(e){ a={t:'err',v:'#NAME?'}; } if(astCache.size>4000) astCache.clear(); astCache.set(src,a); }
   return a;
 }
-function sheetIndex(name){ const n=name.toLowerCase(); return wb.sheets.findIndex(s=>s.name.toLowerCase()===n); }
+function sheetIndex(name){ const n=name.toLowerCase(); return S.wb.sheets.findIndex(s=>s.name.toLowerCase()===n); }
 function storedValue(cell){ if(cell.str) return cell.v; return parseLiteral(cell.v, cell.s&&cell.s.fmt, 'canon').v; }
 function cellValue(si,r,c){
   const key=si+'!'+r+','+c;
   if(cache.has(key)) return cache.get(key);
-  const sh=wb.sheets[si]; const cell=sh.cells[A(r,c)];
+  const sh=S.wb.sheets[si]; const cell=sh.cells[A(r,c)];
   if(!cell || cell.v==null || cell.v==='') return null;
   let v;
   if(cell.v[0]==='=' && cell.v.length>1 && !cell.str){
     if(calcing.has(key)){ circular.add(sh.name+'!'+A(r,c)); return 0; }
-    calcing.add(key);
-    try{ v=evalNode(getAst(cell.v),{si}); }catch(e){ v = isErr(e) ? e : E.val(); }
+    calcing.add(key); spend(1);
+    try{ v=evalNode(getAst(cell.v),{si}); }catch(e){ if(e && e.budget) throw e; v = isErr(e) ? e : E.val(); }
     calcing.delete(key);
     if(isArr(v)) v=v.arr[0][0];
     if(v===null||v===MISSING) v=0;
@@ -835,7 +944,7 @@ function cellValue(si,r,c){
   cache.set(key,v); return v;
 }
 function rangeVal(si,r1,c1,r2,c2){
-  r2=Math.min(r2,ROWS-1); c2=Math.min(c2,COLS-1); const out=[];
+  r2=Math.min(r2,ROWS-1); c2=Math.min(c2,COLS-1); const out=[]; spend(((r2-r1+1)*(c2-c1+1)/20)|0);
   for(let r=r1;r<=r2;r++){ const row=[]; for(let c=c1;c<=c2;c++) row.push(cellValue(si,r,c)); out.push(row); }
   if(!out.length) out.push([null]);
   return {arr:out};
@@ -846,14 +955,14 @@ function evalNode(n,ctx){
     case 'err': return new XErr(n.v);
     case 'missing': return MISSING;
     case 'name': return E.name();
-    case 'ref': { const si=n.sheet==null?ctx.si:sheetIndex(n.sheet); if(si<0) return E.ref(); return cellValue(si,n.r,n.c); }
-    case 'range': { const si=n.sheet==null?ctx.si:sheetIndex(n.sheet); if(si<0) return E.ref(); return rangeVal(si,n.r1,n.c1,n.r2,n.c2); }
+    case 'ref': { const si=n.sheet==null?ctx.si:sheetIndex(n.sheet); if(si<0 || n.r>=ROWS || n.c>=COLS) return E.ref(); return cellValue(si,n.r,n.c); }
+    case 'range': { const si=n.sheet==null?ctx.si:sheetIndex(n.sheet); if(si<0 || n.r1>=ROWS || n.r2>=ROWS || n.c1>=COLS || n.c2>=COLS) return E.ref(); return rangeVal(si,n.r1,n.c1,n.r2,n.c2); }
     case 'neg': return lift1(evalNode(n.e,ctx), x=>{ if(isErr(x)) return x; const y=toNum(x); return isErr(y)?y:-y; });
     case 'pct': return lift1(evalNode(n.e,ctx), x=>{ if(isErr(x)) return x; const y=toNum(x); return isErr(y)?y:r15(y/100); });
     case 'bin': return lift2(evalNode(n.l,ctx), evalNode(n.r,ctx), (a,b)=>scalarOp(n.op,a,b));
     case 'fn': {
       const key=resolveFn(n.name); if(!key) return E.name();
-      const args=n.args.map(a=>evalNode(a,ctx));
+      spend(1); const args=n.args.map(a=>evalNode(a,ctx));
       try{ const r=FN[key].f(args,ctx); return r===undefined ? E.val() : r; }
       catch(e){ if(isErr(e)) return e; throw e; }
     }
@@ -972,7 +1081,7 @@ function formatText(v, f){
       return t;
     });
   }
-  if(DEC===',') f=swapSeps(f);
+  if(S.DEC===',') f=swapSeps(f);
   if(f.includes('%')) v*=100;
   const m=/[#0,.]+/.exec(f); if(!m) return f.replace(/"/g,'');
   const core=m[0]; const dot=core.indexOf('.');
@@ -980,7 +1089,7 @@ function formatText(v, f){
   const group = core.slice(0, dot<0?core.length:dot).includes(',');
   const s=locNum(Math.abs(v).toLocaleString('en-US',{minimumFractionDigits:decs,maximumFractionDigits:decs,useGrouping:group}));
   const deq = x => x.replace(/"/g,'');
-  return (v<0?'-':'') + deq(DEC===','?swapSeps(f.slice(0,m.index)):f.slice(0,m.index)) + s + deq(DEC===','?swapSeps(f.slice(m.index+core.length)):f.slice(m.index+core.length));
+  return (v<0?'-':'') + deq(S.DEC===','?swapSeps(f.slice(0,m.index)):f.slice(0,m.index)) + s + deq(S.DEC===','?swapSeps(f.slice(m.index+core.length)):f.slice(m.index+core.length));
 }
 function logicVals(a){
   const out=[];
@@ -1138,7 +1247,7 @@ def('DATEDIF','SIFECHA',DATE,'fecha_inicial, fecha_final, unidad','Calcula el n�
   if(u==='D') return e-s; if(u==='M') return months; if(u==='Y'||u==='A') return Math.floor(months/12); if(u==='YM'||u==='AM') return months%12; throw E.num(); });
 def('NETWORKDAYS','DIAS.LAB',DATE,'fecha_inicial, fecha_final','Devuelve el número total de días laborables entre dos fechas.', a=>{
   let s=Math.trunc(N(a[0])), e=Math.trunc(N(a[1])); const sign=s<=e?1:-1; if(s>e) [s,e]=[e,s]; if(e-s>200000) throw E.num();
-  let n=0; for(let d=s; d<=e; d++){ const w=fromSerial(d).getUTCDay(); if(w!==0&&w!==6) n++; } return n*sign; });
+  spend(((e-s)/50)|0); let n=0; for(let d=s; d<=e; d++){ const w=fromSerial(d).getUTCDay(); if(w!==0&&w!==6) n++; } return n*sign; });
 
 def('ISBLANK','ESBLANCO',INFO,'valor','Comprueba si se refiere a una celda vacía y devuelve VERDADERO o FALSO.', a=>first(a[0])===null);
 def('ISNUMBER','ESNUMERO',INFO,'valor','Comprueba si un valor es un número y devuelve VERDADERO o FALSO.', a=>typeof first(a[0])==='number');
@@ -1160,8 +1269,6 @@ const CATS=[FIN,LOGIC,TEXT,DATE,LOOK,MATH,STAT,INFO];
 const esName = k => FN[k].es || k;
 const FN_LIST=Object.values(FN).sort((x,y)=>esName(x.name).localeCompare(esName(y.name),'es'));
 const AC_LIST=Object.values(FN).flatMap(f=>[{name:f.es||f.name,f}].concat(f.es&&f.es!==f.name?[{name:f.name,f,en:true}]:[])).sort((x,y)=>x.name.localeCompare(y.name,'es'));
-let recentFns=['SUM','AVERAGE','IF','VLOOKUP','COUNTIF','MAX','MIN','SUMIF','XLOOKUP','CONCAT'];
-const fnArgs = f => f.args ? f.args.split(', ').join(SEP()+' ') : '';
 
 /* ================= Display formatting ================= */
 const NF = (v,dec,group) => locNum(v.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec,useGrouping:group}));
@@ -1190,11 +1297,11 @@ function display(v, s, auto){
 }
 const DATE_FNS={TODAY:'date',DATE:'date',EDATE:'date',EOMONTH:'date',NOW:'datetime'};
 const MONEY_FNS={PMT:'currency',FV:'currency',PV:'currency'};
-function cellFmt(si,r,c){ const sh=wb.sheets[si]; const cell=sh&&sh.cells[A(r,c)]; const f=cell&&cell.s&&cell.s.fmt; return (f && f!=='general' && f!=='text') ? f : null; }
+function cellFmt(si,r,c){ const sh=S.wb.sheets[si]; const cell=sh&&sh.cells[A(r,c)]; const f=cell&&cell.s&&cell.s.fmt; return (f && f!=='general' && f!=='text') ? f : null; }
 function fmtOf(n,depth){
   if(!n||depth>6) return null;
   switch(n.t){
-    case 'ref': case 'range': { const si=n.sheet==null?cur:sheetIndex(n.sheet); if(si<0) return null; return n.t==='ref' ? cellFmt(si,n.r,n.c) : cellFmt(si,n.r1,n.c1); }
+    case 'ref': case 'range': { const si=n.sheet==null?S.cur:sheetIndex(n.sheet); if(si<0) return null; return n.t==='ref' ? cellFmt(si,n.r,n.c) : cellFmt(si,n.r1,n.c1); }
     case 'bin': return ['+','-','*','/'].includes(n.op) ? (fmtOf(n.l,depth+1)||fmtOf(n.r,depth+1)) : null;
     case 'neg': return fmtOf(n.e,depth+1);
     case 'fn': { const k=resolveFn(n.name); if(DATE_FNS[k]) return DATE_FNS[k]; if(MONEY_FNS[k]) return MONEY_FNS[k];
@@ -1222,8 +1329,58 @@ function editText(cell){
   return fmtGeneral(p);
 }
 
+/* ================= Engine helpers ================= */
+function recalc(){ cache.clear(); calcing.clear(); circular.clear(); }
+function setWorkbook(w, current){ S.wb = w; S.cur = current || 0; recalc(); }
+/* Evaluates formula text such as "=SUMA(A1:A3)" (canonical syntax: dot decimal, comma separator). */
+function evalFormulaText(text, si){
+  const src = String(text)[0] === '=' ? String(text) : '=' + text;
+  try{
+    const v = evalNode(getAst(src), { si: si || 0 });
+    return isArr(v) ? v.arr[0][0] : v;
+  }catch(e){ if(isErr(e)) return e; throw e; }
+}
+
+return { S, ROWS, COLS, colName, colIndex, A, parseA, parseRangeText, XErr, isErr, E, ERR_ES, ERR_IN, errText, MISSING, isArr, r15, boolText, EPOCH, fromSerial, todaySerial, parseDateText, parseLiteral, fmtGeneralCanon, fmtGeneral, toNum, toStr, toBool, typeRank, cmp, scalarOp, arrGet, lift2, lift1, tokenize, parseFormula, balanceParens, SPLIT_RE, mapOutside, NUM_LB, toCanonFormula, toLocalFormula, shiftFormula, localizeFns, refsInFormula, sheet, cache, calcing, circular, astCache, getAst, sheetIndex, storedValue, cellValue, rangeVal, evalNode, FN, ALIAS, def, resolveFn, given, sc, N, Str, Bool, Arr2, first, flatVals, nums, total, roundTo, wildRe, makeCrit, ifsCore, findIn, pad2, swapSeps, formatText, logicVals, dateParts, serialOf, median, variance, MATH, STAT, LOGIC, LOOK, TEXT, DATE, INFO, FIN, CATS, esName, FN_LIST, AC_LIST, NF, dateStr, timeStr, display, DATE_FNS, MONEY_FNS, cellFmt, fmtOf, autoFmt, editText, locNum, recalc, setWorkbook, evalFormulaText, sanitizeWorkbook, spend };
+}
+
+root.GridEngine = { createEngine, sanitizeWorkbook, ROWS, COLS };
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>
+/* =====================================================================
+   GridLab UI. All formula logic lives in engine.js (window.GridEngine).
+   ===================================================================== */
+(() => {
+'use strict';
+const DEF_W = 64, HEAD_W = 40;
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"]/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[ch]));
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+
+/* ================= Engine ================= */
+const eng = window.GridEngine.createEngine({ decimal: ',' });
+const ST = eng.S;   // ST.wb = workbook, ST.cur = active sheet index, ST.DEC = decimal separator
+const { ROWS, COLS, colName, A, parseA, parseRangeText, isErr, errText, r15, boolText, parseLiteral, cmp, parseFormula, balanceParens, toCanonFormula, toLocalFormula, shiftFormula, localizeFns, refsInFormula, sheet, cache, circular, astCache, sheetIndex, storedValue, cellValue, FN, resolveFn, MATH, STAT, LOGIC, LOOK, TEXT, DATE, INFO, FIN, esName, FN_LIST, AC_LIST, display, autoFmt, editText, CATS } = eng;
+
+/* ================= Preferences (skin + regional settings) ================= */
+const PREF_KEY='gridlab.prefs.v1';
+const prefs={skin:'excel', region:'auto'};
+try{ Object.assign(prefs, JSON.parse(localStorage.getItem(PREF_KEY))||{}); }catch(e){}
+const savePrefs = () => { try{ localStorage.setItem(PREF_KEY, JSON.stringify(prefs)); }catch(e){} };
+const autoComma = (() => { try{ return (1.5).toLocaleString().includes(','); }catch(e){ return true; } })();
+function applyRegion(){ ST.DEC = prefs.region==='dot' ? '.' : prefs.region==='comma' ? ',' : (autoComma ? ',' : '.'); }
+applyRegion();
+const SEP = () => ST.DEC===',' ? ';' : ',';
+document.documentElement.dataset.skin = prefs.skin;
+let isPhone=false, nativeKb=false;
+
+let recentFns=['SUM','AVERAGE','IF','VLOOKUP','COUNTIF','MAX','MIN','SUMIF','XLOOKUP','CONCAT'];
+const fnArgs = f => f.args ? f.args.split(', ').join(SEP()+' ') : '';
+
 /* ================= Workbook state ================= */
 const KEY='gridlab.workbook.es.v1';
+const SCHEMA=2;   // stored payload version; older/odd payloads are sanitized on load
 let autosave=true, showFormulas=false, zoom=100;
 const view={gridlines:true, headings:true, formulaBar:true};
 function blankSheet(name){ return {name, cells:{}, colW:{}, sel:{ar:0,ac:0,fr:0,fc:0}}; }
@@ -1260,20 +1417,29 @@ function sampleWorkbook(){
 }
 function save(){
   if(!autosave) return;
-  try{ localStorage.setItem(KEY, JSON.stringify({wb, cur, view, zoom})); $('#saveState').textContent='· Guardado en este navegador'; }catch(e){ $('#saveState').textContent='· No se pudo guardar'; }
+  try{ localStorage.setItem(KEY, JSON.stringify({ver:SCHEMA, wb:ST.wb, cur:ST.cur, view, zoom})); $('#saveState').textContent='· Guardado en este navegador'; }catch(e){ $('#saveState').textContent='· No se pudo guardar'; }
 }
 function load(){
   try{
-    const d=JSON.parse(localStorage.getItem(KEY));
-    if(d && d.wb && Array.isArray(d.wb.sheets) && d.wb.sheets.length){ wb=d.wb; cur=clamp(d.cur||0,0,wb.sheets.length-1); Object.assign(view, d.view||{}); zoom=d.zoom||100; return; }
+    const raw=localStorage.getItem(KEY);
+    if(raw){
+      const d=JSON.parse(raw);
+      if(!d || typeof d!=='object') throw new Error('bad payload');
+      ST.wb=window.GridEngine.sanitizeWorkbook(d.wb, {maxSheets:100, maxCells:100000, maxStr:32768});
+      ST.cur=clamp(Math.trunc(+d.cur)||0,0,ST.wb.sheets.length-1);
+      const v=d.view&&typeof d.view==='object'?d.view:{};
+      for(const k of ['gridlines','headings','formulaBar']) if(typeof v[k]==='boolean') view[k]=v[k];
+      zoom=clamp(Math.round(+d.zoom)||100,10,400);
+      return;
+    }
   }catch(e){}
-  wb=sampleWorkbook(); cur=0;
+  ST.wb=sampleWorkbook(); ST.cur=0;
 }
 
 const undoStack=[], redoStack=[];
-const snapshot = () => JSON.stringify({sheets:wb.sheets, cur});
+const snapshot = () => JSON.stringify({sheets:ST.wb.sheets, cur:ST.cur});
 function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length>100) undoStack.shift(); redoStack.length=0; }
-function restore(s){ const d=JSON.parse(s); wb.sheets=d.sheets; cur=clamp(d.cur,0,wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); }
+function restore(s){ const d=JSON.parse(s); ST.wb.sheets=d.sheets; ST.cur=clamp(d.cur,0,ST.wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); }
 function undo(){ if(edit) return cancelEdit(); if(!undoStack.length) return toast('No hay nada que deshacer.'); redoStack.push(snapshot()); restore(undoStack.pop()); }
 function redo(){ if(!redoStack.length) return toast('No hay nada que rehacer.'); undoStack.push(snapshot()); restore(redoStack.pop()); }
 
@@ -1314,7 +1480,7 @@ function paintCell(key){
   const p=parseA(key); if(!p) return; const {r,c}=p; const td=tds[r][c];
   const cell=sheet().cells[key]; const s=cell.s||{}; const raw=cell.v||'';
   const isF = raw[0]==='=' && !cell.str;
-  const v = raw==='' ? null : cellValue(cur,r,c);
+  const v = raw==='' ? null : cellValue(ST.cur,r,c);
   let text, type;
   if(showFormulas && isF){ text=toLocalFormula(raw); type='string'; }
   else { text=display(v, s, isF ? autoFmt(raw) : null); type = isErr(v) ? 'err' : typeof v; }
@@ -1367,7 +1533,7 @@ function drawSel(){
   hiCols=colHeads.slice(R.c1,R.c2+1); hiRows=rowHeads.slice(R.r1,R.r2+1);
   const fullCol=R.r1===0&&R.r2===ROWS-1, fullRow=R.c1===0&&R.c2===COLS-1;
   hiCols.forEach(th=>th.classList.add(fullCol?'hf':'hs')); hiRows.forEach(th=>th.classList.add(fullRow?'hf':'hs'));
-  if(clip && clip.si===cur) placeRange(ants,clip); else ants.hidden=true;
+  if(clip && clip.si===ST.cur) placeRange(ants,clip); else ants.hidden=true;
 }
 const REF_COLORS=['#4472C4','#C0504D','#8064A2','#2E9E5B','#E07B1A','#1B9BC6','#B8860B'];
 function drawRefs(text){
@@ -1421,7 +1587,7 @@ function updateStatus(){
   $('#circ').textContent=circular.size ? 'Referencias circulares: '+[...circular][0] : '';
   if(R.r1===R.r2&&R.c1===R.c2){ st.textContent=''; return; }
   let cnt=0, nc=0, s=0;
-  for(let r=R.r1;r<=R.r2;r++) for(let c=R.c1;c<=R.c2;c++){ const v=cellValue(cur,r,c); if(v!==null&&v!=='') cnt++; if(typeof v==='number'){ nc++; s+=v; } }
+  for(let r=R.r1;r<=R.r2;r++) for(let c=R.c1;c<=R.c2;c++){ const v=cellValue(ST.cur,r,c); if(v!==null&&v!=='') cnt++; if(typeof v==='number'){ nc++; s+=v; } }
   const cell=sheet().cells[A(sel.ar,sel.ac)]; const style=cell&&cell.s; const af=cell&&cell.v&&cell.v[0]==='='&&!cell.str?autoFmt(cell.v):null;
   const f=x=>display(r15(x),style,af);
   st.textContent = cnt ? (nc ? `Promedio: ${f(s/nc)}    Recuento: ${cnt}    Suma: ${f(s)}` : `Recuento: ${cnt}`) : '';
@@ -1436,7 +1602,7 @@ function startEdit(text, mode, focusBar){
   if(edit) return;
   hidePop();
   const cell=sheet().cells[A(sel.ar,sel.ac)];
-  edit={r:sel.ar, c:sel.ac, si:cur, mode, point:null, pc:null, input:focusBar?fbar:ed};
+  edit={r:sel.ar, c:sel.ac, si:ST.cur, mode, point:null, pc:null, input:focusBar?fbar:ed};
   ed.value=text; fbar.value=text;
   const s=(cell&&cell.s)||{};
   ed.style.fontWeight=s.b?'700':''; ed.style.fontStyle=s.i?'italic':'';
@@ -1605,7 +1771,7 @@ function updateSig(){
     if(ch==='"'){ q=!q; continue; } if(q) continue;
     if(ch==='('){ const m=/([A-Za-z_\u00C0-\u024F][A-Za-z0-9_.\u00C0-\u024F]*)\s*$/.exec(before.slice(0,i)); stack.push({name:m?m[1]:null, arg:0}); }
     else if(ch===')') stack.pop();
-    else if((ch===';' || (ch===',' && !(DEC===',' && /\d/.test(before[i-1]||'') && /\d/.test(before[i+1]||'')))) && stack.length) stack[stack.length-1].arg++;
+    else if((ch===';' || (ch===',' && !(ST.DEC===',' && /\d/.test(before[i-1]||'') && /\d/.test(before[i+1]||'')))) && stack.length) stack[stack.length-1].arg++;
   }
   let top=null; for(let i=stack.length-1;i>=0;i--){ if(stack[i].name && resolveFn(stack[i].name)){ top=stack[i]; break; } }
   if(!top){ sigEl.hidden=true; return; }
@@ -1666,18 +1832,18 @@ function copySel(cut){
     const row=[], vrow=[], line=[];
     for(let c=R.c1;c<=R.c2;c++){
       const cell=sh.cells[A(r,c)]; row.push(cell?cloneCell(cell):null);
-      const v=cellValue(cur,r,c); vrow.push(v); line.push(cell ? display(v, cell.s, cell.v&&cell.v[0]==='='&&!cell.str?autoFmt(cell.v):null) : '');
+      const v=cellValue(ST.cur,r,c); vrow.push(v); line.push(cell ? display(v, cell.s, cell.v&&cell.v[0]==='='&&!cell.str?autoFmt(cell.v):null) : '');
     }
     cells.push(row); vals.push(vrow); lines.push(line.join('\t'));
   }
-  clip={si:cur, ...R, cells, vals, cut};
+  clip={si:ST.cur, ...R, cells, vals, cut};
   lastClipText=lines.join('\n'); drawSel();
   return lastClipText;
 }
 function pasteClip(mode){
   if(!clip) return toast('Primero copia o corta algunas celdas.');
   pushUndo(); const sh=sheet(); const dr=sel.ar-clip.r1, dc=sel.ac-clip.c1;
-  const src=wb.sheets[clip.si];
+  const src=ST.wb.sheets[clip.si];
   if(clip.cut) for(let r=clip.r1;r<=clip.r2;r++) for(let c=clip.c1;c<=clip.c2;c++) delete src.cells[A(r,c)];
   clip.cells.forEach((row,i)=>row.forEach((cell,j)=>{
     const r=sel.ar+i, c=sel.ac+j; if(r>=ROWS||c>=COLS) return; const k=A(r,c);
@@ -1767,10 +1933,10 @@ function sortSel(desc){
   const sh=sheet();
   const head=[]; for(let c=R.c1;c<=R.c2;c++) head.push(sh.cells[A(R.r1,c)]);
   const allText=head.every(cell=>!cell || (cell.v[0]!=='=' && typeof storedValue(cell)!=='number'));
-  const hdr=allText && (head.some(cell=>cell&&cell.s&&cell.s.b) || typeof cellValue(cur,R.r1+1,sel.ac)!=='string');
+  const hdr=allText && (head.some(cell=>cell&&cell.s&&cell.s.b) || typeof cellValue(ST.cur,R.r1+1,sel.ac)!=='string');
   const start=hdr?R.r1+1:R.r1; const key=clamp(sel.ac,R.c1,R.c2);
   const rows=[];
-  for(let r=start;r<=R.r2;r++){ const cells=[]; for(let c=R.c1;c<=R.c2;c++) cells.push(sh.cells[A(r,c)]||null); rows.push({r,cells,v:cellValue(cur,r,key)}); }
+  for(let r=start;r<=R.r2;r++){ const cells=[]; for(let c=R.c1;c<=R.c2;c++) cells.push(sh.cells[A(r,c)]||null); rows.push({r,cells,v:cellValue(ST.cur,r,key)}); }
   rows.sort((a,b)=>{ const ea=a.v===null||a.v==='', eb=b.v===null||b.v===''; if(ea&&eb) return 0; if(ea) return 1; if(eb) return -1; const x=cmp(a.v,b.v); return desc?-x:x; });
   pushUndo();
   rows.forEach((row,i)=>{ const tr=start+i; row.cells.forEach((cell,j)=>{ const k=A(tr,R.c1+j); if(!cell) delete sh.cells[k]; else { const out=cloneCell(cell); if(!cell.str) out.v=shiftFormula(cell.v,tr-row.r,0); sh.cells[k]=out; } }); });
@@ -1796,7 +1962,7 @@ function borders(kind){
   });
   compact(); changed();
 }
-function shownDecimals(){ const cell=sheet().cells[A(sel.ar,sel.ac)]; if(!cell) return 0; const t=display(cellValue(cur,sel.ar,sel.ac), cell.s, cell.v&&cell.v[0]==='='&&!cell.str?autoFmt(cell.v):null); const m=new RegExp('\\'+DEC+'(\\d+)').exec(t); return m?m[1].length:0; }
+function shownDecimals(){ const cell=sheet().cells[A(sel.ar,sel.ac)]; if(!cell) return 0; const t=display(cellValue(ST.cur,sel.ar,sel.ac), cell.s, cell.v&&cell.v[0]==='='&&!cell.str?autoFmt(cell.v):null); const m=new RegExp('\\'+ST.DEC+'(\\d+)').exec(t); return m?m[1].length:0; }
 const SIZES=[8,9,10,10.5,11,12,14,16,18,20,22,24,26,28,36,48,72];
 function bumpFont(dir){ const s=activeStyle().size||11; const next = dir>0 ? SIZES.find(x=>x>s)||s : [...SIZES].reverse().find(x=>x<s)||s; setStyle('size', next===11?null:next); }
 const CELL_STYLES={
@@ -1840,7 +2006,7 @@ let lastFill='#FFFF00', lastFont='#C00000';
 function autosum(fnKey){
   const nm=esName(fnKey||'SUM');
   if(edit){ insertText(nm+'('); return; }
-  const {ar:r, ac:c}=sel; const isNum=(y,x)=>typeof cellValue(cur,y,x)==='number';
+  const {ar:r, ac:c}=sel; const isNum=(y,x)=>typeof cellValue(ST.cur,y,x)==='number';
   let range=null;
   if(r>0 && isNum(r-1,c)){ let r1=r-1; while(r1>0 && isNum(r1-1,c)) r1--; range=A(r1,c)+':'+A(r-1,c); }
   else if(c>0 && isNum(r,c-1)){ let c1=c-1; while(c1>0 && isNum(r,c1-1)) c1--; range=A(r,c1)+':'+A(r,c-1); }
@@ -1882,26 +2048,26 @@ function setRegion(r){
   $('#sepKey').textContent=SEP();
   renderRibbon(); changed();
 }
-function addSheet(){ let n=wb.sheets.length+1; while(sheetIndex('Hoja'+n)>=0) n++; pushUndo(); sheet().sel={...sel}; wb.sheets.push(blankSheet('Hoja'+n)); cur=wb.sheets.length-1; sel={ar:0,ac:0,fr:0,fc:0}; afterStructure(); }
-function deleteSheet(i=cur){ if(wb.sheets.length<2) return toast('Un libro debe contener al menos una hoja.'); pushUndo(); const name=wb.sheets[i].name; wb.sheets.splice(i,1); cur=clamp(cur>=i?cur-1:cur,0,wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); toast(`Se eliminó "${name}". Presiona Ctrl+Z para deshacer.`); }
-function dupSheet(i=cur){ pushUndo(); const s=JSON.parse(JSON.stringify(wb.sheets[i])); const base=s.name+' ('; let n=2; while(sheetIndex(base+n+')')>=0) n++; s.name=base+n+')'; wb.sheets.splice(i+1,0,s); cur=i+1; sel={...s.sel}; afterStructure(); }
+function addSheet(){ let n=ST.wb.sheets.length+1; while(sheetIndex('Hoja'+n)>=0) n++; pushUndo(); sheet().sel={...sel}; ST.wb.sheets.push(blankSheet('Hoja'+n)); ST.cur=ST.wb.sheets.length-1; sel={ar:0,ac:0,fr:0,fc:0}; afterStructure(); }
+function deleteSheet(i=ST.cur){ if(ST.wb.sheets.length<2) return toast('Un libro debe contener al menos una hoja.'); pushUndo(); const name=ST.wb.sheets[i].name; ST.wb.sheets.splice(i,1); ST.cur=clamp(ST.cur>=i?ST.cur-1:ST.cur,0,ST.wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); toast(`Se eliminó "${name}". Presiona Ctrl+Z para deshacer.`); }
+function dupSheet(i=ST.cur){ pushUndo(); const s=JSON.parse(JSON.stringify(ST.wb.sheets[i])); const base=s.name+' ('; let n=2; while(sheetIndex(base+n+')')>=0) n++; s.name=base+n+')'; ST.wb.sheets.splice(i+1,0,s); ST.cur=i+1; sel={...s.sel}; afterStructure(); }
 const quoteName = n => /^[A-Za-z_\u00C0-\u024F][A-Za-z0-9_.\u00C0-\u024F]*$/.test(n) && !/^[A-Za-z]{1,3}\d+$/.test(n) ? n : `'${n.replace(/'/g,"''")}'`;
 function renameSheet(i, name){
-  name=name.trim(); const old=wb.sheets[i].name; if(!name||name===old) return;
+  name=name.trim(); const old=ST.wb.sheets[i].name; if(!name||name===old) return;
   if(/[\\\/?*\[\]:]/.test(name) || name.length>31) return toast('El nombre de la hoja no puede contener \\ / ? * [ ] : y debe tener 31 caracteres o menos.');
   const j=sheetIndex(name); if(j>=0 && j!==i) return toast('Ese nombre ya está en uso. Prueba con otro.');
   pushUndo();
   const q=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
   const re=new RegExp(`(?<![A-Za-z0-9_.\\u00C0-\\u024F])(?:'${q(old.replace(/'/g,"''"))}'|${q(old)})!`,'gi');
-  for(const sh of wb.sheets) for(const k in sh.cells){ const cell=sh.cells[k]; if(cell.v && cell.v[0]==='=' && !cell.str) cell.v=cell.v.split(/("(?:[^"]|"")*")/).map((seg,ix)=>ix%2?seg:seg.replace(re, quoteName(name)+'!')).join(''); }
-  wb.sheets[i].name=name; astCache.clear(); renderTabs(); changed();
+  for(const sh of ST.wb.sheets) for(const k in sh.cells){ const cell=sh.cells[k]; if(cell.v && cell.v[0]==='=' && !cell.str) cell.v=cell.v.split(/("(?:[^"]|"")*")/).map((seg,ix)=>ix%2?seg:seg.replace(re, quoteName(name)+'!')).join(''); }
+  ST.wb.sheets[i].name=name; astCache.clear(); renderTabs(); changed();
 }
 function newWorkbook(sample){
   pushUndo(); const w=sample?sampleWorkbook():{name:'Libro1', sheets:[blankSheet('Hoja1')]};
-  wb.sheets=w.sheets; cur=0; sel={ar:0,ac:0,fr:0,fc:0}; clip=null; closeBackstage(); afterStructure();
+  ST.wb.sheets=w.sheets; ST.cur=0; sel={ar:0,ac:0,fr:0,fc:0}; clip=null; closeBackstage(); afterStructure();
   toast(sample ? 'Se cargó el libro de práctica. Ctrl+Z recupera el libro anterior.' : 'Libro en blanco nuevo. Ctrl+Z recupera el libro anterior.');
 }
-function wbStats(){ let cells=0, f=0; for(const sh of wb.sheets) for(const k in sh.cells){ const v=sh.cells[k].v; if(v){ cells++; if(v[0]==='=') f++; } } toast(`${wb.sheets.length} hojas · ${cells} celdas con datos · ${f} fórmulas`); }
+function wbStats(){ let cells=0, f=0; for(const sh of ST.wb.sheets) for(const k in sh.cells){ const v=sh.cells[k].v; if(v){ cells++; if(v[0]==='=') f++; } } toast(`${ST.wb.sheets.length} hojas · ${cells} celdas con datos · ${f} fórmulas`); }
 function clearCells(what){
   pushUndo(); const sh=sheet();
   eachSel((r,c)=>{ const k=A(r,c); const cell=sh.cells[k]; if(!cell) return;
@@ -1917,10 +2083,10 @@ function filterToggle(){
   const R=region(sel.ar, sel.ac);
   if(R.r1===R.r2) return toast('Selecciona una celda dentro de una tabla con datos.');
   if(sel.ar===R.r1) return toast('Selecciona una celda con datos (no el encabezado) para filtrar por ese valor.');
-  const target=cellValue(cur, sel.ar, sel.ac);
+  const target=cellValue(ST.cur, sel.ar, sel.ac);
   pushUndo();
   sh.hiddenRows=[];
-  for(let r=R.r1+1; r<=R.r2; r++) if(cmp(cellValue(cur, r, sel.ac), target)!==0) sh.hiddenRows.push(r);
+  for(let r=R.r1+1; r<=R.r2; r++) if(cmp(cellValue(ST.cur, r, sel.ac), target)!==0) sh.hiddenRows.push(r);
   changed();
   toast(`Filtro aplicado: se muestran solo las filas con "${display(target)}". Se ocultaron ${sh.hiddenRows.length} filas.`);
 }
@@ -1968,7 +2134,7 @@ const ACTIONS={
   toggleView, viewNormal:()=>{},
   zoom100:()=>setZoom(100), zoomTo:z=>setZoom(+z),
   zoomSel:()=>{ const R=rng(); const b=rectOf(R.r1,R.c1,R.r2,R.c2); const z=zoom/100; setZoom(Math.min((scroller.clientWidth-60)/(b.w/z), (scroller.clientHeight-40)/(b.h/z))*100); requestAnimationFrame(()=>ensureVisible(R.r1,R.c1)); },
-  addSheet, deleteSheet:()=>deleteSheet(), dupSheet:()=>dupSheet(), renameSheet:()=>startRename(cur),
+  addSheet, deleteSheet:()=>deleteSheet(), dupSheet:()=>dupSheet(), renameSheet:()=>startRename(ST.cur),
   wbStats, ribbonToggle:()=>{ $('#ribbon').classList.toggle('collapsed'); requestAnimationFrame(drawSel); },
   filterToggle, filterClear,
   goSheet:i=>switchSheet(+i),
@@ -2033,8 +2199,8 @@ const XI={
   payments:`<rect x="2.5" y="8" width="27" height="16" rx="1" fill="${LG}" stroke="${GR}" stroke-width="1.5"/><circle cx="16" cy="16" r="4.4" fill="none" stroke="#fff" stroke-width="1.8"/>`,
   percent:TC(24,22,'%'),
   comma:TC(21,12,'000'),
-  decimal_increase:()=>`${T(1,13,11,'←0')}${T(8,28,11,DEC+'00')}`,
-  decimal_decrease:()=>`${T(1,13,11,DEC+'00')}${T(8,28,11,'→0')}`,
+  decimal_increase:()=>`${T(1,13,11,'←0')}${T(8,28,11,ST.DEC+'00')}`,
+  decimal_decrease:()=>`${T(1,13,11,ST.DEC+'00')}${T(8,28,11,'→0')}`,
   rule:`${gridR(2,3,20,25,2,3)}<rect x="12.6" y="3.6" width="8.8" height="7.2" fill="${RD}"/><rect x="2.6" y="11.9" width="8.8" height="7.2" fill="${BL}"/><rect x="12.6" y="20.2" width="8.8" height="7.2" fill="${RD}"/><rect x="24" y="9" width="5" height="19" fill="${LB}"/><rect x="24" y="17" width="5" height="11" fill="${BL}"/>`,
   table_view:tableIc,
   table:tableIc,
@@ -2323,7 +2489,7 @@ function glyphs(it){
   return base.replace(/^<span class="/,'<span class="hasx ')+svg;
 }
 function itemHTML(it){
-  if(it.k==='sel') return `<select class="rsel" id="${it.id}" style="width:${it.w}px" aria-label="${esc(it.l)}" title="${esc(it.l)}">${it.opts.map(o=>Array.isArray(o)?`<option value="${o[0]}">${esc(o[1])}</option>`:`<option value="${o}">${String(o).replace('.',DEC)}</option>`).join('')}</select>`;
+  if(it.k==='sel') return `<select class="rsel" id="${it.id}" style="width:${it.w}px" aria-label="${esc(it.l)}" title="${esc(it.l)}">${it.opts.map(o=>Array.isArray(o)?`<option value="${o[0]}">${esc(o[1])}</option>`:`<option value="${o}">${String(o).replace('.',ST.DEC)}</option>`).join('')}</select>`;
   const tip=it.tip||it.l;
   const attrs=`data-act="${it.a||''}" data-label="${esc(it.l)}"${it.menu?` data-menu="${esc(it.menu)}"`:''}${it.tog?` data-tog="${it.tog}"`:''}${it.chk?` data-chk="${it.chk}"`:''}${it.arg!=null?` data-arg="${esc(it.arg)}"`:''} title="${esc(tip)}" aria-label="${esc(tip)}"`;
   let icon;
@@ -2358,7 +2524,7 @@ function showTab(id){
   requestAnimationFrame(drawSel);
 }
 function updateRibbonState(){
-  if(!wb) return;
+  if(!ST.wb) return;
   const s=activeStyle();
   document.querySelectorAll('[data-tog]').forEach(b=>{
     const t=b.dataset.tog; let on;
@@ -2464,9 +2630,9 @@ function showBs(v){
   document.querySelectorAll('#bsNav [data-bs]').forEach(b=>b.classList.toggle('on', b.dataset.bs===v));
   const body=$('#bsBody'); const hr=new Date().getHours(); const greet=hr<12?'Buenos días':hr<19?'Buenas tardes':'Buenas noches';
   const tiles=`<div class="tiles"><button class="tile" data-bsact="blank"><span class="thumb"><span class="ms">add</span></span><span>Libro en blanco</span></button><button class="tile" data-bsact="sample"><span class="thumb"><span class="ms">school</span></span><span>Libro de práctica</span></button></div>`;
-  if(v==='home'||v==='new') body.innerHTML=`<h1>${v==='home'?greet:'Nuevo'}</h1><h2>Nuevo</h2>${tiles}<h2>Recientes</h2><table class="recent"><tbody><tr><td><span class="ms" style="color:var(--brand-fg)">grid_on</span></td><td>${esc(wb.name||'Libro1')}</td><td style="color:var(--text-2)">Este navegador · Abierto ahora</td></tr></tbody></table>`;
-  else if(v==='info'){ let cells=0,f=0; for(const sh of wb.sheets) for(const k in sh.cells){ const x=sh.cells[k].v; if(x){ cells++; if(x[0]==='=') f++; } }
-    body.innerHTML=`<h1>Información</h1><h2>${esc(wb.name||'Libro1')}</h2><div class="stat-list"><span>Hojas</span><b>${wb.sheets.length}</b><span>Celdas con datos</span><b>${cells}</b><span>Fórmulas</span><b>${f}</b><span>Guardado</span><b>${autosave?'Automático, en este navegador':'El autoguardado está desactivado'}</b></div><p>Tu libro se guarda solo en este navegador. Si borras los datos del sitio, se pierde.</p>`; }
+  if(v==='home'||v==='new') body.innerHTML=`<h1>${v==='home'?greet:'Nuevo'}</h1><h2>Nuevo</h2>${tiles}<h2>Recientes</h2><table class="recent"><tbody><tr><td><span class="ms" style="color:var(--brand-fg)">grid_on</span></td><td>${esc(ST.wb.name||'Libro1')}</td><td style="color:var(--text-2)">Este navegador · Abierto ahora</td></tr></tbody></table>`;
+  else if(v==='info'){ let cells=0,f=0; for(const sh of ST.wb.sheets) for(const k in sh.cells){ const x=sh.cells[k].v; if(x){ cells++; if(x[0]==='=') f++; } }
+    body.innerHTML=`<h1>Información</h1><h2>${esc(ST.wb.name||'Libro1')}</h2><div class="stat-list"><span>Hojas</span><b>${ST.wb.sheets.length}</b><span>Celdas con datos</span><b>${cells}</b><span>Fórmulas</span><b>${f}</b><span>Guardado</span><b>${autosave?'Automático, en este navegador':'El autoguardado está desactivado'}</b></div><p>Tu libro se guarda solo en este navegador. Si borras los datos del sitio, se pierde.</p>`; }
   else if(v==='account') body.innerHTML=`<h1>Cuenta</h1><h2>Tema de Office</h2>${skinPicker()}<p>El tema Excel imita la cinta de opciones real, con íconos a color para que tus alumnos ubiquen los botones a simple vista. El tema Blanco es más sobrio.</p>`;
   else if(v==='options') body.innerHTML=`<h1>Opciones</h1><h2>General</h2><div class="opt"><label>Tema de Office</label>${skinPicker()}</div><h2>Fórmulas</h2>${regionPicker()}`;
   else if(v==='dev'){ const n=devCounts();
@@ -2491,17 +2657,17 @@ function showBs(v){
   const sh = sheet();
   if ((sh.hiddenRows||[]).length) return filterClear();
   const R = region(sel.ar, sel.ac);        // tabla alrededor de la celda activa
-  const target = cellValue(cur, sel.ar, sel.ac);
+  const target = cellValue(ST.cur, sel.ar, sel.ac);
   pushUndo();                              // permite Ctrl+Z
   sh.hiddenRows = [];
   for (let r = R.r1 + 1; r &lt;= R.r2; r++)   // la fila R.r1 es el encabezado
-    if (cmp(cellValue(cur, r, sel.ac), target) !== 0) sh.hiddenRows.push(r);
+    if (cmp(cellValue(ST.cur, r, sel.ac), target) !== 0) sh.hiddenRows.push(r);
   changed();                               // redibuja y guarda
 }</pre>
 <h2>Herramientas internas útiles</h2>
 <ul class="devlist">
 <li><code>rng()</code>: rango seleccionado <code>{r1,c1,r2,c2}</code>. <code>sel.ar</code>/<code>sel.ac</code>: celda activa.</li>
-<li><code>cellValue(cur, fila, col)</code>: valor calculado. <code>setRaw(fila, col, texto)</code>: escribe como si el usuario tecleara.</li>
+<li><code>cellValue(hoja, fila, col)</code>: valor calculado. <code>setRaw(fila, col, texto)</code>: escribe como si el usuario tecleara.</li>
 <li><code>eachSel((fila,col)=>{...})</code>: recorre la selección. <code>styleOf(fila,col)</code>: estilo editable de una celda.</li>
 <li><code>region(fila,col)</code>: tabla contigua. <code>toast('mensaje')</code>: aviso breve en pantalla.</li>
 <li><code>def(...)</code>: agrega una función de fórmula nueva (ver la guía).</li>
@@ -2517,20 +2683,20 @@ $('#bsBody').addEventListener('click', e=>{
   if(e.target.closest('[data-dev="na"]')){ const on=document.body.classList.toggle('show-na'); closeBackstage(); toast(on?'Los botones sin función tienen ahora un borde rojo punteado.':'Ya no se resaltan los botones sin función.'); return; }
   const s=e.target.closest('[data-skin]'); if(s){ setSkin(s.dataset.skin); document.querySelectorAll('#bsBody .skin').forEach(x=>x.classList.toggle('on', x.dataset.skin===prefs.skin)); }
 });
-$('#bsBody').addEventListener('change', e=>{ if(e.target.id==='regionSel'){ setRegion(e.target.value); toast(`Separador de argumentos: "${SEP()}" · decimal: "${DEC}"`); } });
+$('#bsBody').addEventListener('change', e=>{ if(e.target.id==='regionSel'){ setRegion(e.target.value); toast(`Separador de argumentos: "${SEP()}" · decimal: "${ST.DEC}"`); } });
 
 /* ================= Sheet tabs ================= */
 const tabsEl=$('#sheetTabs');
-function renderTabs(){ const ps=$('#pbSheet'); if(ps) ps.textContent=sheet().name; tabsEl.innerHTML=wb.sheets.map((s,i)=>`<button class="stab${i===cur?' on':''}" data-i="${i}">${esc(s.name)}</button>`).join(''); const on=tabsEl.querySelector('.on'); if(on) on.scrollIntoView({block:'nearest',inline:'nearest'}); }
+function renderTabs(){ const ps=$('#pbSheet'); if(ps) ps.textContent=sheet().name; tabsEl.innerHTML=ST.wb.sheets.map((s,i)=>`<button class="stab${i===ST.cur?' on':''}" data-i="${i}">${esc(s.name)}</button>`).join(''); const on=tabsEl.querySelector('.on'); if(on) on.scrollIntoView({block:'nearest',inline:'nearest'}); }
 function switchSheet(i){
-  if(i===cur || i<0 || i>=wb.sheets.length) return;
+  if(i===ST.cur || i<0 || i>=ST.wb.sheets.length) return;
   if(edit && !commitEdit(0,0)) return;
-  sheet().sel={...sel}; cur=i; sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})};
+  sheet().sel={...sel}; ST.cur=i; sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})};
   traceOn=false; refLayer.innerHTML=''; afterStructure(); scroller.scrollTo(0,0); ensureVisible(sel.ar,sel.ac);
 }
 function startRename(i){
   const b=tabsEl.querySelector(`[data-i="${i}"]`); if(!b) return;
-  b.innerHTML=`<input value="${esc(wb.sheets[i].name)}" aria-label="Nombre de la hoja" maxlength="31">`;
+  b.innerHTML=`<input value="${esc(ST.wb.sheets[i].name)}" aria-label="Nombre de la hoja" maxlength="31">`;
   const inp=b.querySelector('input'); inp.focus(); inp.select();
   let done=false; const finish=ok=>{ if(done) return; done=true; if(ok) renameSheet(i, inp.value); renderTabs(); };
   inp.addEventListener('keydown', e=>{ e.stopPropagation(); if(e.key==='Enter') finish(true); if(e.key==='Escape') finish(false); });
@@ -2542,8 +2708,8 @@ tabsEl.addEventListener('dblclick', e=>{ const b=e.target.closest('.stab'); if(b
 tabsEl.addEventListener('contextmenu', e=>{ const b=e.target.closest('.stab'); if(!b) return; e.preventDefault(); switchSheet(+b.dataset.i);
   showMenu([{ic:'post_add',l:'Insertar hoja',a:'addSheet'},{ic:'edit',l:'Cambiar nombre',a:'renameSheet'},{ic:'content_copy',l:'Mover o copiar...',a:'dupSheet'},{ic:'delete',l:'Eliminar',a:'deleteSheet'},'-',{ic:'palette',l:'Color de pestaña'},{ic:'lock',l:'Proteger hoja...'}], e.clientX, e.clientY-10); });
 $('#addSheet').addEventListener('click', ()=>{ if(edit && !commitEdit(0,0)) return; addSheet(); });
-$('#tabPrev').addEventListener('click', ()=>switchSheet(cur-1));
-$('#tabNext').addEventListener('click', ()=>switchSheet(cur+1));
+$('#tabPrev').addEventListener('click', ()=>switchSheet(ST.cur-1));
+$('#tabNext').addEventListener('click', ()=>switchSheet(ST.cur+1));
 
 /* ================= Pointer interaction ================= */
 let drag=null, tap=null, touchUI=matchMedia('(pointer: coarse)').matches;
@@ -2831,7 +2997,7 @@ function renderKb(){
   if(kbPanel==='fx') kbMain.innerHTML=KB_FNS.map(k=>kbKey('F:'+k, esName(k), 'fn')).join('')+kbKey('MORE','Más…','sm');
   else {
     const keys=kbPanel==='abc'?abcKeys():KB_NUM;
-    kbMain.innerHTML=keys.map(([k,l,c])=>kbKey(k, l!=null?l : k==='SEP'?SEP() : k==='DEC'?DEC : k, c)).join('');
+    kbMain.innerHTML=keys.map(([k,l,c])=>kbKey(k, l!=null?l : k==='SEP'?SEP() : k==='DEC'?ST.DEC : k, c)).join('');
   }
   kbSide.innerHTML=KB_SIDE.map(([k,l,c])=>kbKey(k,l,c,true)).join('');
   updateKbHint();
@@ -2871,7 +3037,7 @@ function kbPress(k){
     case 'LEFT': kbCaret(-1); return;
     case 'RIGHT': kbCaret(1); return;
   }
-  let t = k==='SEP' ? SEP() : k==='DEC' ? DEC : k;
+  let t = k==='SEP' ? SEP() : k==='DEC' ? ST.DEC : k;
   if(!kbUpper && /^[A-ZÑÁÉÍÓÚ]$/.test(k)) t=k.toLowerCase();
   insertText(t);
 }
@@ -2906,7 +3072,7 @@ $('#pbar').addEventListener('click', e=>{
     case 'ribbon': { const rb=$('#ribbon'); rb.classList.toggle('collapsed'); break; }
     case 'file': openBackstage('home'); break;
     case 'sheets': { const r=b.getBoundingClientRect();
-      showMenu([{h:'Hojas'},...wb.sheets.map((s,i)=>({ic:i===cur?'check':'',l:s.name,a:'goSheet',arg:i})),'-',{ic:'post_add',l:'Nueva hoja',a:'addSheet'},{ic:'content_copy',l:'Duplicar hoja',a:'dupSheet'},{ic:'delete',l:'Eliminar hoja',a:'deleteSheet'}], r.left, r.top-8);
+      showMenu([{h:'Hojas'},...ST.wb.sheets.map((s,i)=>({ic:i===ST.cur?'check':'',l:s.name,a:'goSheet',arg:i})),'-',{ic:'post_add',l:'Nueva hoja',a:'addSheet'},{ic:'content_copy',l:'Duplicar hoja',a:'dupSheet'},{ic:'delete',l:'Eliminar hoja',a:'deleteSheet'}], r.left, r.top-8);
       requestAnimationFrame(()=>{ pop.style.top=Math.max(8, r.top-pop.offsetHeight-4)+'px'; }); break; }
     default: run(a, b.title||a);
   }
