@@ -65,8 +65,14 @@ function sampleWorkbook(){
   s2.colW={0:330,1:70,2:120,3:84,4:120};
   return {name:'Libro1', sheets:[s1,s2,s3]};
 }
+/* Lab integration state (see window.Lab at the end of this file). Exam and exercise workbooks are
+   never persisted: while labActive, persist is false and the practice workbook is kept in practiceStash. */
+let readOnly=false, persist=true, labActive=false, practiceStash=null, silentChange=false;
+const changeCbs=[];
+const RO_BLOCK={roBlock:true};   // thrown by pushUndo() in read-only mode so no mutation can slip through
+function notifyChange(){ if(silentChange) return; changeCbs.slice().forEach(cb=>{ try{ cb(); }catch(e){} }); }
 function save(){
-  if(!autosave) return;
+  if(!autosave || !persist) return;
   try{ localStorage.setItem(KEY, JSON.stringify({ver:SCHEMA, wb:ST.wb, cur:ST.cur, view, zoom})); $('#saveState').textContent='· Guardado en este navegador'; }catch(e){ $('#saveState').textContent='· No se pudo guardar'; }
 }
 function load(){
@@ -88,10 +94,10 @@ function load(){
 
 const undoStack=[], redoStack=[];
 const snapshot = () => JSON.stringify({sheets:ST.wb.sheets, cur:ST.cur});
-function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length>100) undoStack.shift(); redoStack.length=0; }
+function pushUndo(){ if(readOnly) throw RO_BLOCK; undoStack.push(snapshot()); if(undoStack.length>100) undoStack.shift(); redoStack.length=0; }
 function restore(s){ const d=JSON.parse(s); ST.wb.sheets=d.sheets; ST.cur=clamp(d.cur,0,ST.wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); }
-function undo(){ if(edit) return cancelEdit(); if(!undoStack.length) return toast('No hay nada que deshacer.'); redoStack.push(snapshot()); restore(undoStack.pop()); }
-function redo(){ if(!redoStack.length) return toast('No hay nada que rehacer.'); undoStack.push(snapshot()); restore(redoStack.pop()); }
+function undo(){ if(readOnly) return roToast(); if(edit) return cancelEdit(); if(!undoStack.length) return toast('No hay nada que deshacer.'); redoStack.push(snapshot()); restore(undoStack.pop()); }
+function redo(){ if(readOnly) return roToast(); if(!redoStack.length) return toast('No hay nada que rehacer.'); undoStack.push(snapshot()); restore(redoStack.pop()); }
 
 /* ================= Grid ================= */
 const grid=$('#grid'), scroller=$('#scroller');
@@ -210,7 +216,7 @@ const nameBox=$('#nameBox'), fbar=$('#fbar'), ed=$('#cellEditor');
 let traceOn=false;
 function changed(){
   cache.clear(); circular.clear();
-  paintAll(); applyRowVisibility(); drawSel(); updateStatus(); updateFormulaBar(); updateRibbonState(); save();
+  paintAll(); applyRowVisibility(); drawSel(); updateStatus(); updateFormulaBar(); updateRibbonState(); save(); notifyChange();
 }
 function onSelChange(){
   sheet().sel={...sel};
@@ -243,13 +249,15 @@ function updateStatus(){
   st.textContent = cnt ? (nc ? `Promedio: ${f(s/nc)}    Recuento: ${cnt}    Suma: ${f(s)}` : `Recuento: ${cnt}`) : '';
 }
 const MODES={ready:'Listo', enter:'Introducir', edit:'Modificar', point:'Señalar'};
-function setMode(m){ $('#mode').textContent=MODES[m]; }
+function setMode(m){ $('#mode').textContent = (readOnly && m==='ready') ? 'Solo lectura' : MODES[m]; }
+const roToast = () => toast('Esta hoja es de solo lectura.');
 
 /* ================= Editing ================= */
 let edit=null;
 const measureCtx=document.createElement('canvas').getContext('2d');
 function startEdit(text, mode, focusBar){
   if(edit) return;
+  if(readOnly){ roToast(); return; }
   hidePop();
   const cell=sheet().cells[A(sel.ar,sel.ac)];
   edit={r:sel.ar, c:sel.ac, si:ST.cur, mode, point:null, pc:null, input:focusBar?fbar:ed};
@@ -698,7 +706,7 @@ function setRegion(r){
   $('#sepKey').textContent=SEP();
   renderRibbon(); changed();
 }
-function addSheet(){ let n=ST.wb.sheets.length+1; while(sheetIndex('Hoja'+n)>=0) n++; pushUndo(); sheet().sel={...sel}; ST.wb.sheets.push(blankSheet('Hoja'+n)); ST.cur=ST.wb.sheets.length-1; sel={ar:0,ac:0,fr:0,fc:0}; afterStructure(); }
+function addSheet(){ if(readOnly) return roToast(); let n=ST.wb.sheets.length+1; while(sheetIndex('Hoja'+n)>=0) n++; pushUndo(); sheet().sel={...sel}; ST.wb.sheets.push(blankSheet('Hoja'+n)); ST.cur=ST.wb.sheets.length-1; sel={ar:0,ac:0,fr:0,fc:0}; afterStructure(); }
 function deleteSheet(i=ST.cur){ if(ST.wb.sheets.length<2) return toast('Un libro debe contener al menos una hoja.'); pushUndo(); const name=ST.wb.sheets[i].name; ST.wb.sheets.splice(i,1); ST.cur=clamp(ST.cur>=i?ST.cur-1:ST.cur,0,ST.wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); toast(`Se eliminó "${name}". Presiona Ctrl+Z para deshacer.`); }
 function dupSheet(i=ST.cur){ pushUndo(); const s=JSON.parse(JSON.stringify(ST.wb.sheets[i])); const base=s.name+' ('; let n=2; while(sheetIndex(base+n+')')>=0) n++; s.name=base+n+')'; ST.wb.sheets.splice(i+1,0,s); ST.cur=i+1; sel={...s.sel}; afterStructure(); }
 const quoteName = n => /^[A-Za-z_\u00C0-\u024F][A-Za-z0-9_.\u00C0-\u024F]*$/.test(n) && !/^[A-Za-z]{1,3}\d+$/.test(n) ? n : `'${n.replace(/'/g,"''")}'`;
@@ -713,12 +721,14 @@ function renameSheet(i, name){
   ST.wb.sheets[i].name=name; astCache.clear(); renderTabs(); changed();
 }
 function newWorkbook(sample){
+  if(labActive || readOnly){ toast('No disponible mientras trabajas en un examen o ejercicio.'); return; }
   pushUndo(); const w=sample?sampleWorkbook():{name:'Libro1', sheets:[blankSheet('Hoja1')]};
   ST.wb.sheets=w.sheets; ST.cur=0; sel={ar:0,ac:0,fr:0,fc:0}; clip=null; closeBackstage(); afterStructure();
   toast(sample ? 'Se cargó el libro de práctica. Ctrl+Z recupera el libro anterior.' : 'Libro en blanco nuevo. Ctrl+Z recupera el libro anterior.');
 }
 function wbStats(){ let cells=0, f=0; for(const sh of ST.wb.sheets) for(const k in sh.cells){ const v=sh.cells[k].v; if(v){ cells++; if(v[0]==='=') f++; } } toast(`${ST.wb.sheets.length} hojas · ${cells} celdas con datos · ${f} fórmulas`); }
 function clearCells(what){
+  if(readOnly) return roToast();
   pushUndo(); const sh=sheet();
   eachSel((r,c)=>{ const k=A(r,c); const cell=sh.cells[k]; if(!cell) return;
     if(what==='all') delete sh.cells[k]; else if(what==='formats') delete cell.s; else { cell.v=''; delete cell.str; } });
@@ -755,7 +765,7 @@ function devCounts(){
 const EDIT_SAFE=new Set(['fn','insertFn','autosum','undo','redo','save','ribbonToggle','zoomTo','zoom100','toggleView','toggleSkin','bold','italic','underline','strike','fillColor','fontColor','setFill','setFont']);
 const ACTIONS={
   undo, redo,
-  save:()=>{ const was=autosave; autosave=true; save(); autosave=was; toast('Guardado en este navegador.'); },
+  save:()=>{ if(!persist){ toast('Esta hoja no se guarda en el navegador: usa los botones de la barra superior.'); return; } const was=autosave; autosave=true; save(); autosave=was; toast('Guardado en este navegador.'); },
   cut:()=>{ copySel(true); clipToSystem(); },
   copy:()=>{ copySel(false); clipToSystem(); },
   paste:()=>pasteClip(), pasteValues:()=>pasteClip('values'), pasteFormats:()=>pasteClip('formats'),
@@ -791,10 +801,15 @@ const ACTIONS={
   devGuide:()=>openBackstage('dev'),
   toggleSkin:()=>{ setSkin(prefs.skin==='white'?'excel':'white'); toast(prefs.skin==='white'?'Tema Blanco activado.':'Tema Excel activado.'); },
 };
+/* Actions that never modify the workbook; the only ones allowed in read-only mode. */
+const RO_SAFE=new Set(['copy','toggleView','showFormulas','calcNow','tracePrec','removeArrows','viewNormal','zoom100','zoomTo','zoomSel','goSheet','goto','ribbonToggle','toggleSkin','wbStats','devGuide','insertFn']);
 function run(a, label, arg){
   if(!a){ toast(`"${label}" todavía no está disponible en este simulador.`); return; }
+  if(readOnly && !RO_SAFE.has(a)){ roToast(); return; }
   if(edit && !EDIT_SAFE.has(a)){ if(!commitEdit(0,0)) return; }
-  const f=ACTIONS[a]; if(f) f(arg); else toast(`"${label}" todavía no está disponible en este simulador.`);
+  const f=ACTIONS[a];
+  if(!f){ toast(`"${label}" todavía no está disponible en este simulador.`); return; }
+  try{ f(arg); }catch(err){ if(err===RO_BLOCK) roToast(); else throw err; }
 }
 function clipToSystem(){ try{ const p=navigator.clipboard && navigator.clipboard.writeText(lastClipText); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
 
@@ -1345,6 +1360,7 @@ function switchSheet(i){
   traceOn=false; refLayer.innerHTML=''; afterStructure(); scroller.scrollTo(0,0); ensureVisible(sel.ar,sel.ac);
 }
 function startRename(i){
+  if(readOnly) return roToast();
   const b=tabsEl.querySelector(`[data-i="${i}"]`); if(!b) return;
   b.innerHTML=`<input value="${esc(ST.wb.sheets[i].name)}" aria-label="Nombre de la hoja" maxlength="31">`;
   const inp=b.querySelector('input'); inp.focus(); inp.select();
@@ -1367,8 +1383,8 @@ document.body.classList.toggle('touch', touchUI);
 document.addEventListener('pointerdown', e=>{ const t=e.pointerType!=='mouse'; if(t!==touchUI){ touchUI=t; document.body.classList.toggle('touch',t); drawSel(); } }, true);
 scroller.addEventListener('pointerdown', e=>{
   if(e.button>0) return;
-  if(e.target.classList.contains('rsz')) return startResize(e);
-  if(e.target===handle) return startHandle(e);
+  if(e.target.classList.contains('rsz')) return readOnly ? undefined : startResize(e);
+  if(e.target===handle) return readOnly ? undefined : startHandle(e);
   if(e.target===ed) return;
   const th=e.target.closest('th'); if(th) return headerDown(th,e);
   const p=cellFromEl(e.target); if(!p) return;
@@ -1390,6 +1406,7 @@ scroller.addEventListener('pointerdown', e=>{
   select(p.r,p.c,e.shiftKey); drag={type:'sel'};
 });
 scroller.addEventListener('dblclick', e=>{
+  if(readOnly && (e.target.classList.contains('rsz') || e.target===handle)) return;
   if(e.target.classList.contains('rsz')){ const c=e.target.parentNode.cellIndex-1; sel={ar:sel.ar,ac:c,fr:sel.fr,fc:c}; autofit(); return; }
   if(e.target===handle){ const R=rng(); let n=0; if(R.c1>0){ while(R.r2+n+1<ROWS && hasContent(R.r2+n+1,R.c1-1)) n++; } doFill(R,'down',n); return; }
   const p=cellFromEl(e.target); if(!p || edit) return;
@@ -1545,6 +1562,7 @@ function moveInSelection(dr,dc){
 }
 document.addEventListener('keydown', e=>{
   const t=e.target;
+  if(t.closest && t.closest('.lab-ui')) return;   // lab screens (forms, nav, dialogs) own their keys
   if(e.altKey && (e.key==='q'||e.key==='Q')){ e.preventDefault(); $('#search').focus(); return; }
   if(t===ed || t===fbar){ if(edit) editKey(e); return; }
   if(!dlg.hidden){ if(e.key==='Escape') closeFnDialog(); return; }
@@ -1561,7 +1579,7 @@ document.addEventListener('keydown', e=>{
     const map={z:undo,y:redo,n:()=>toggleStyle('b'),k:()=>toggleStyle('i'),s:()=>toggleStyle('u'),e:selectAll,a:selectAll,
       '`':ACTIONS.showFormulas, g:ACTIONS.save, j:()=>fillDir('down'), d:()=>fillDir('right'), i:ACTIONS.goto,
       home:()=>{ select(0,0); ensureVisible(0,0); }, end:()=>{ let mr=0,mc=0; for(const key in sheet().cells){ const p=parseA(key); if(p&&hasContent(p.r,p.c)){ mr=Math.max(mr,p.r); mc=Math.max(mc,p.c); } } select(mr,mc); ensureVisible(mr,mc); }};
-    if(map[l]){ e.preventDefault(); map[l](); }
+    if(map[l]){ e.preventDefault(); try{ map[l](); }catch(err){ if(err===RO_BLOCK) roToast(); else throw err; } }
     return;
   }
   if(e.altKey && k==='='){ e.preventDefault(); autosum('SUM'); return; }
@@ -1582,7 +1600,8 @@ document.addEventListener('copy', e=>{ if(edit || (e.target.closest && e.target.
 document.addEventListener('cut', e=>{ if(edit || (e.target.closest && e.target.closest('input,textarea'))) return; e.preventDefault(); e.clipboardData.setData('text/plain', copySel(true)); });
 document.addEventListener('paste', e=>{
   if(edit || (e.target.closest && e.target.closest('input,textarea'))) return;
-  e.preventDefault(); const text=(e.clipboardData||window.clipboardData).getData('text/plain')||'';
+  e.preventDefault(); if(readOnly) return roToast();
+  const text=(e.clipboardData||window.clipboardData).getData('text/plain')||'';
   if(clip && (!text || text.replace(/\r/g,'')===lastClipText)) return pasteClip();
   if(text) pasteText(text); else pasteClip();
 });
@@ -1754,5 +1773,63 @@ sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})};
 renderKb();
 applyPhone();
 afterStructure();
-setTimeout(()=>toast(isPhone ? 'Toca una celda dos veces para escribir. Usa = para empezar una fórmula.' : `Consejo: selecciona una celda y escribe = para empezar una fórmula. Los argumentos se separan con "${SEP()}". F4 alterna referencias relativas y absolutas.`), 600);
+setTimeout(()=>{ if(!labActive) toast(isPhone ? 'Toca una celda dos veces para escribir. Usa = para empezar una fórmula.' : `Consejo: selecciona una celda y escribe = para empezar una fórmula. Los argumentos se separan con "${SEP()}". F4 alterna referencias relativas y absolutas.`); }, 600);
+
+/* ================= Lab integration API (used by lab.js; harmless when unused) ================= */
+window.addEventListener('error', e=>{ if(e.error===RO_BLOCK){ e.preventDefault(); roToast(); } });
+const SANE={maxSheets:100, maxCells:100000, maxStr:32768};
+function setReadOnlyFlag(v){
+  v=!!v; if(v===readOnly) return;
+  if(v && edit) cancelEdit();
+  readOnly=v; painter=null; fillMode=false; document.body.classList.remove('painting');
+  document.body.classList.toggle('readonly', v);
+  fbar.readOnly=v; setMode('ready'); drawSel();
+}
+function swapWorkbook(wb, cur){
+  if(edit) cancelEdit();
+  ST.wb=wb; ST.cur=clamp(Math.trunc(+cur)||0,0,wb.sheets.length-1);
+  undoStack.length=0; redoStack.length=0; clip=null; painter=null; traceOn=false; refLayer.innerHTML=''; hidePop();
+  document.body.classList.remove('painting');
+  sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})};
+  silentChange=true;
+  try{ afterStructure(); }finally{ silentChange=false; }
+  scroller.scrollTop=0; scroller.scrollLeft=0;
+}
+window.Lab = {
+  /** Loads a workbook into the grid without touching the saved practice workbook. */
+  loadWorkbook(wb, opts){
+    opts=opts||{};
+    const clean=window.GridEngine.sanitizeWorkbook(wb, SANE);
+    if(!labActive){ practiceStash=JSON.stringify({wb:ST.wb, cur:ST.cur}); labActive=true; persist=false; document.body.classList.add('lab-sim'); }
+    setReadOnlyFlag(!!opts.readOnly);
+    swapWorkbook(clean, 0);
+    $('#bookName').textContent=opts.title||clean.name||'Libro1';
+  },
+  /** Current workbook as plain JSON (commits a pending cell edit first). */
+  getWorkbook(){
+    if(edit) commitEdit(0,0);
+    sheet().sel={...sel};
+    return JSON.parse(JSON.stringify({name:ST.wb.name||'Libro1', sheets:ST.wb.sheets}));
+  },
+  setReadOnly: setReadOnlyFlag,
+  isReadOnly: ()=>readOnly,
+  isActive: ()=>labActive,
+  /** Subscribes to workbook changes (not fired by loadWorkbook). Returns an unsubscribe function. */
+  onChange(cb){ changeCbs.push(cb); return ()=>{ const i=changeCbs.indexOf(cb); if(i>=0) changeCbs.splice(i,1); }; },
+  /** Leaves exam/exercise mode and brings the free-practice workbook back. */
+  resetToPractice(){
+    if(!labActive) return;
+    labActive=false; persist=true; document.body.classList.remove('lab-sim');
+    setReadOnlyFlag(false);
+    let restored=false;
+    try{ if(practiceStash){ const d=JSON.parse(practiceStash); swapWorkbook(window.GridEngine.sanitizeWorkbook(d.wb, SANE), d.cur); restored=true; } }catch(e){}
+    if(!restored){ load(); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; swapWorkbook(ST.wb, ST.cur); }
+    practiceStash=null; $('#bookName').textContent=ST.wb.name||'Libro1';
+    $('#saveState').textContent='· Guardado en este navegador';
+  },
+  setSaveLabel(text){ $('#saveState').textContent=text; },
+  toast(msg){ toast(msg); },
+  /** Call after the simulator becomes visible again (it is measured with offsetLeft/Top). */
+  refresh(){ requestAnimationFrame(()=>{ applyColWidths(); drawSel(); if(edit) positionEditor(); }); },
+};
 })();

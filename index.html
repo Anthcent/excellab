@@ -421,6 +421,191 @@ body.show-na .rb[data-act=""]:not([data-menu]),body.show-na .launch{outline:1.5p
 
 /* Offline fallback: when the Material Symbols font cannot load, show the icon name as small text instead of broken boxes. */
 html.no-icons .ms{font-family:system-ui,"Segoe UI",Arial,sans-serif;font-size:10px!important;letter-spacing:0;line-height:1.1;max-width:46px;overflow:hidden;text-overflow:ellipsis;font-feature-settings:normal}
+/* =====================================================================
+   Lab screens (login, exams, exam runner, admin). Only active in "lab mode" (body.lab), which
+   lab.js turns on when the API answers. Uses the simulator's color variables so both skins and
+   the dark scheme keep working.
+   ===================================================================== */
+body.lab{display:flex;flex-direction:column}
+body.lab #app{flex:1 1 auto;min-height:0;height:auto}
+body.readonly #handle{display:none!important}
+body.readonly .gridwrap{cursor:default}
+body.lab-sim .autosave,body.lab-sim [data-act="save"]{display:none}
+
+.lab-ui{font:13px/1.4 var(--ui-font);color:var(--text)}
+.lab-ui *,.lab-ui *::before,.lab-ui *::after{box-sizing:border-box}
+.lab-ui a{color:var(--brand-fg);text-decoration:none}
+.lab-ui a:hover{text-decoration:underline}
+.lab-ui h1,.lab-ui h2,.lab-ui h3{margin:0;font-weight:600;line-height:1.25}
+.lab-ui h1{font-size:22px}
+.lab-ui h2{font-size:16px}
+.lab-ui h3{font-size:14px}
+.lab-ui p{margin:0 0 8px}
+.lab-ui .muted{color:var(--text-2)}
+.lab-ui .small{font-size:12px}
+.lab-ui .nowrap{white-space:nowrap}
+.lab-ui .pre{white-space:pre-wrap;word-break:break-word}
+.lab-ui .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0,0,0,0);border:0}
+
+/* top bar */
+#labBar{flex:none;display:flex;align-items:center;gap:6px;min-height:36px;padding:0 8px;background:var(--chrome);border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:thin}
+#labBar .brand{font-weight:700;color:var(--brand-fg);margin-right:6px;white-space:nowrap}
+#labBar nav{display:flex;align-items:center;gap:2px;flex:1 1 auto;min-width:0}
+#labBar nav a,#labBar nav .grp{padding:6px 9px;border-radius:6px;color:var(--text);white-space:nowrap}
+#labBar nav a:hover{background:var(--hover);text-decoration:none}
+#labBar nav a[aria-current="page"]{background:var(--on);color:var(--brand-fg);font-weight:600}
+#labBar nav .grp{color:var(--text-2);font-size:11px;text-transform:uppercase;letter-spacing:.04em;padding-left:10px;border-left:1px solid var(--line);margin-left:6px}
+#labBar .who{display:flex;align-items:center;gap:8px;white-space:nowrap;margin-left:auto}
+#labBar .who .name{color:var(--text-2);max-width:160px;overflow:hidden;text-overflow:ellipsis}
+
+/* buttons and inputs */
+.lb-btn{display:inline-flex;align-items:center;justify-content:center;gap:6px;min-height:34px;padding:6px 14px;border:1px solid var(--line-strong);border-radius:6px;background:var(--ribbon);color:var(--text);font:inherit;cursor:pointer;text-decoration:none!important;white-space:nowrap}
+.lb-btn:hover{background:var(--hover)}
+.lb-btn.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+.lb-btn.primary:hover{background:var(--brand-strong)}
+.lb-btn.danger{border-color:#c0392b;color:#c0392b}
+.lb-btn.danger.solid{background:#c0392b;color:#fff}
+.lb-btn.sm{min-height:28px;padding:3px 9px;font-size:12px}
+.lb-btn.link{border-color:transparent;background:none;color:var(--brand-fg)}
+.lb-btn[disabled],.lb-btn[aria-disabled="true"]{opacity:.5;cursor:not-allowed;pointer-events:none}
+.lb-field{display:flex;flex-direction:column;gap:4px;margin-bottom:12px;min-width:0}
+.lb-field>label,.lb-field>.lbl{font-weight:600;font-size:12.5px}
+.lb-field .hint{font-size:12px;color:var(--text-2)}
+.lb-field .err{font-size:12px;color:#c0392b}
+.lb-in,.lb-field input:not([type=checkbox]):not([type=radio]),.lb-field select,.lb-field textarea{width:100%;min-height:36px;padding:6px 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--input);color:var(--text);font:inherit}
+.lb-field textarea{min-height:88px;resize:vertical}
+.lb-field [aria-invalid="true"]{border-color:#c0392b}
+.lb-check{display:flex;align-items:flex-start;gap:8px;margin-bottom:10px}
+.lb-check input{margin-top:3px;width:18px;height:18px;flex:none}
+.lb-row{display:flex;gap:12px;flex-wrap:wrap}
+.lb-row>*{flex:1 1 160px;min-width:0}
+
+/* views */
+#labView{flex:1 1 auto;min-height:0;overflow:auto;padding:16px 12px 40px;background:var(--chrome)}
+.lab-page{max-width:1040px;margin:0 auto}
+.lab-page.narrow{max-width:460px}
+.lab-page.mid{max-width:760px}
+.lab-head{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+.lab-head h1{flex:1 1 auto;min-width:0}
+.card{background:var(--ribbon);border:1px solid var(--line);border-radius:10px;padding:16px;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.card+.card{margin-top:12px}
+.cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(290px,1fr));gap:12px}
+.cards .card{display:flex;flex-direction:column;gap:8px;margin:0}
+.cards .card .grow{flex:1 1 auto}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.chip{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);background:var(--chrome);font-size:12px;color:var(--text-2);white-space:nowrap}
+.badge{display:inline-block;padding:2px 9px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;background:var(--chrome);border:1px solid var(--line-strong);color:var(--text-2)}
+.badge.ok{background:#e1f3e8;border-color:#9ccfb0;color:#0b5a2f}
+.badge.bad{background:#fbe5e2;border-color:#e3a39b;color:#9c2b1f}
+.badge.warn{background:#fff1d4;border-color:#e6c577;color:#7a5200}
+.badge.info{background:#e1ecfb;border-color:#a3c0ea;color:#1f4a8a}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]):not([data-skin="white"]) .badge.ok{background:#173a28;border-color:#2c6b48;color:#9fe0bb}
+  :root:not([data-theme="light"]):not([data-skin="white"]) .badge.bad{background:#40201c;border-color:#7d3b33;color:#f0aaa2}
+  :root:not([data-theme="light"]):not([data-skin="white"]) .badge.warn{background:#3d3010;border-color:#7a6320;color:#f0d28a}
+  :root:not([data-theme="light"]):not([data-skin="white"]) .badge.info{background:#18304f;border-color:#35598f;color:#a9c8f2}
+}
+.notice{padding:10px 12px;border-radius:8px;border:1px solid var(--line-strong);background:var(--chrome);margin-bottom:12px}
+.notice.error{border-color:#e3a39b;background:#fbe5e2;color:#7a1f15}
+.notice.warn{border-color:#e6c577;background:#fff1d4;color:#5e4000}
+.notice.ok{border-color:#9ccfb0;background:#e1f3e8;color:#0b4a27}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]):not([data-skin="white"]) .notice.error{background:#40201c;color:#f3c1bb}
+  :root:not([data-theme="light"]):not([data-skin="white"]) .notice.warn{background:#3d3010;color:#f0d28a}
+  :root:not([data-theme="light"]):not([data-skin="white"]) .notice.ok{background:#173a28;color:#b4e8c9}
+}
+.state{padding:40px 12px;text-align:center;color:var(--text-2)}
+.state .lb-btn{margin-top:10px}
+.spinner{display:inline-block;width:16px;height:16px;border:2px solid var(--line-strong);border-top-color:var(--brand);border-radius:50%;animation:lbspin .8s linear infinite;vertical-align:-3px;margin-right:6px}
+@keyframes lbspin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}.timer.danger{animation:none!important}}
+
+.tbl-wrap{overflow-x:auto;border:1px solid var(--line);border-radius:10px;background:var(--ribbon)}
+.tbl{width:100%;border-collapse:collapse;font-size:13px}
+.tbl th,.tbl td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+.tbl th{font-size:12px;color:var(--text-2);font-weight:600;background:var(--chrome);white-space:nowrap}
+.tbl tr:last-child td{border-bottom:0}
+.tbl td.num,.tbl th.num{text-align:right;white-space:nowrap}
+.tbl .actions{display:flex;gap:6px;flex-wrap:wrap}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;margin:0}
+.kv dt{color:var(--text-2)}
+.kv dd{margin:0}
+.rules{margin:0 0 12px;padding-left:20px}
+.rules li{margin-bottom:4px}
+
+/* result summary */
+.score{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.score .big{font-size:38px;font-weight:700;line-height:1}
+.checks{list-style:none;margin:6px 0 0;padding:0}
+.checks li{display:flex;gap:8px;align-items:flex-start;padding:4px 0;border-bottom:1px dashed var(--line)}
+.checks li:last-child{border-bottom:0}
+.checks .mark{flex:none;width:20px;text-align:center;font-weight:700}
+.checks .pass .mark{color:#107c41}
+.checks .fail .mark{color:#c0392b}
+.checks .pts{margin-left:auto;white-space:nowrap;color:var(--text-2)}
+details.fold{border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:var(--ribbon)}
+details.fold+details.fold{margin-top:8px}
+details.fold>summary{cursor:pointer;font-weight:600}
+
+/* context strip above the simulator (exam runner, exercise sheet, attempt review) */
+#labStrip{flex:none;background:var(--ribbon);border-bottom:1px solid var(--line);padding:6px 10px}
+#labStrip .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;min-width:0}
+#labStrip .row+.row{margin-top:6px}
+#labStrip .title{font-weight:600;max-width:42ch;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+#labStrip .spacer{flex:1 1 auto}
+#labStrip .stepper{display:flex;gap:4px;overflow-x:auto;max-width:100%;padding-bottom:2px}
+#labStrip .step{flex:none;min-width:34px;min-height:30px;padding:2px 10px;border:1px solid var(--line-strong);border-radius:6px;background:var(--chrome);color:var(--text);font:inherit;cursor:pointer;display:inline-flex;align-items:center;gap:4px}
+#labStrip .step[aria-current="true"]{border-color:var(--brand);box-shadow:inset 0 0 0 1px var(--brand);font-weight:600}
+#labStrip .step.done{background:var(--on);color:var(--brand-fg)}
+#labStrip .panel{margin-top:6px;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--chrome);max-height:34vh;overflow:auto}
+#labStrip .panel h3{margin-bottom:4px}
+.timer{font-variant-numeric:tabular-nums;font-weight:700;font-size:16px;padding:2px 10px;border-radius:6px;border:1px solid var(--line-strong);background:var(--chrome);white-space:nowrap}
+.timer.warn{background:#fff1d4;border-color:#e6c577;color:#7a5200}
+.timer.danger{background:#fbe5e2;border-color:#e3a39b;color:#9c2b1f;animation:lbpulse 1s ease-in-out infinite}
+.timer.over{background:#c0392b;border-color:#c0392b;color:#fff}
+@keyframes lbpulse{50%{opacity:.55}}
+.savestate{font-size:12px;color:var(--text-2);white-space:nowrap}
+.savestate.bad{color:#c0392b}
+
+/* modal */
+.lab-modal{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:12px;background:rgba(0,0,0,.5)}
+.lab-modal .box{width:min(480px,100%);max-height:calc(100vh - 24px);overflow:auto;background:var(--menu);color:var(--text);border-radius:12px;padding:18px;box-shadow:var(--shadow)}
+.lab-modal .box h2{margin-bottom:8px}
+.lab-modal .actions{display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap;margin-top:14px}
+
+/* check editor + exam picker */
+.check-row{border:1px solid var(--line);border-radius:8px;padding:10px;background:var(--chrome);margin-bottom:10px}
+.check-row .head{display:flex;gap:8px;align-items:center;margin-bottom:8px}
+.check-row .head strong{flex:1 1 auto}
+.picker{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.picker ol,.picker ul{list-style:none;margin:0;padding:0}
+.picker li{display:flex;gap:6px;align-items:center;padding:6px 8px;border:1px solid var(--line);border-radius:6px;background:var(--chrome);margin-bottom:6px}
+.picker li .t{flex:1 1 auto;min-width:0;overflow-wrap:anywhere}
+.picker li.off{opacity:.65}
+@media (max-width:700px){.picker{grid-template-columns:1fr}}
+
+/* phones, especially landscape: keep the simulator as tall as possible */
+@media (max-width:640px){
+  #labView{padding:12px 8px 32px}
+  .lab-ui h1{font-size:19px}
+  .card{padding:12px}
+  #labBar .who .name{display:none}
+}
+@media (max-height:540px){
+  #labBar{min-height:30px}
+  #labBar nav a,#labBar nav .grp{padding:4px 7px}
+  #labBar .brand{display:none}
+  #labStrip{padding:3px 8px}
+  #labStrip .row+.row{margin-top:3px}
+  #labStrip .panel{max-height:26vh}
+  #labStrip .step{min-height:26px;padding:0 8px}
+  .lb-btn{min-height:30px;padding:3px 10px}
+  .timer{font-size:14px;padding:1px 8px}
+  .lab-modal .box{padding:12px}
+}
+/* the phone ribbon is fixed to the top of the screen: push it below the lab chrome */
+body.phone.lab .ribbon{top:calc(31px + var(--labtop,0px) + env(safe-area-inset-top,0px))}
+body.phone.lab .toast{top:calc(4px + var(--labtop,0px) + env(safe-area-inset-top,0px))}
 </style>
 </head>
 <body>
@@ -1415,8 +1600,14 @@ function sampleWorkbook(){
   s2.colW={0:330,1:70,2:120,3:84,4:120};
   return {name:'Libro1', sheets:[s1,s2,s3]};
 }
+/* Lab integration state (see window.Lab at the end of this file). Exam and exercise workbooks are
+   never persisted: while labActive, persist is false and the practice workbook is kept in practiceStash. */
+let readOnly=false, persist=true, labActive=false, practiceStash=null, silentChange=false;
+const changeCbs=[];
+const RO_BLOCK={roBlock:true};   // thrown by pushUndo() in read-only mode so no mutation can slip through
+function notifyChange(){ if(silentChange) return; changeCbs.slice().forEach(cb=>{ try{ cb(); }catch(e){} }); }
 function save(){
-  if(!autosave) return;
+  if(!autosave || !persist) return;
   try{ localStorage.setItem(KEY, JSON.stringify({ver:SCHEMA, wb:ST.wb, cur:ST.cur, view, zoom})); $('#saveState').textContent='· Guardado en este navegador'; }catch(e){ $('#saveState').textContent='· No se pudo guardar'; }
 }
 function load(){
@@ -1438,10 +1629,10 @@ function load(){
 
 const undoStack=[], redoStack=[];
 const snapshot = () => JSON.stringify({sheets:ST.wb.sheets, cur:ST.cur});
-function pushUndo(){ undoStack.push(snapshot()); if(undoStack.length>100) undoStack.shift(); redoStack.length=0; }
+function pushUndo(){ if(readOnly) throw RO_BLOCK; undoStack.push(snapshot()); if(undoStack.length>100) undoStack.shift(); redoStack.length=0; }
 function restore(s){ const d=JSON.parse(s); ST.wb.sheets=d.sheets; ST.cur=clamp(d.cur,0,ST.wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); }
-function undo(){ if(edit) return cancelEdit(); if(!undoStack.length) return toast('No hay nada que deshacer.'); redoStack.push(snapshot()); restore(undoStack.pop()); }
-function redo(){ if(!redoStack.length) return toast('No hay nada que rehacer.'); undoStack.push(snapshot()); restore(redoStack.pop()); }
+function undo(){ if(readOnly) return roToast(); if(edit) return cancelEdit(); if(!undoStack.length) return toast('No hay nada que deshacer.'); redoStack.push(snapshot()); restore(undoStack.pop()); }
+function redo(){ if(readOnly) return roToast(); if(!redoStack.length) return toast('No hay nada que rehacer.'); undoStack.push(snapshot()); restore(redoStack.pop()); }
 
 /* ================= Grid ================= */
 const grid=$('#grid'), scroller=$('#scroller');
@@ -1560,7 +1751,7 @@ const nameBox=$('#nameBox'), fbar=$('#fbar'), ed=$('#cellEditor');
 let traceOn=false;
 function changed(){
   cache.clear(); circular.clear();
-  paintAll(); applyRowVisibility(); drawSel(); updateStatus(); updateFormulaBar(); updateRibbonState(); save();
+  paintAll(); applyRowVisibility(); drawSel(); updateStatus(); updateFormulaBar(); updateRibbonState(); save(); notifyChange();
 }
 function onSelChange(){
   sheet().sel={...sel};
@@ -1593,13 +1784,15 @@ function updateStatus(){
   st.textContent = cnt ? (nc ? `Promedio: ${f(s/nc)}    Recuento: ${cnt}    Suma: ${f(s)}` : `Recuento: ${cnt}`) : '';
 }
 const MODES={ready:'Listo', enter:'Introducir', edit:'Modificar', point:'Señalar'};
-function setMode(m){ $('#mode').textContent=MODES[m]; }
+function setMode(m){ $('#mode').textContent = (readOnly && m==='ready') ? 'Solo lectura' : MODES[m]; }
+const roToast = () => toast('Esta hoja es de solo lectura.');
 
 /* ================= Editing ================= */
 let edit=null;
 const measureCtx=document.createElement('canvas').getContext('2d');
 function startEdit(text, mode, focusBar){
   if(edit) return;
+  if(readOnly){ roToast(); return; }
   hidePop();
   const cell=sheet().cells[A(sel.ar,sel.ac)];
   edit={r:sel.ar, c:sel.ac, si:ST.cur, mode, point:null, pc:null, input:focusBar?fbar:ed};
@@ -2048,7 +2241,7 @@ function setRegion(r){
   $('#sepKey').textContent=SEP();
   renderRibbon(); changed();
 }
-function addSheet(){ let n=ST.wb.sheets.length+1; while(sheetIndex('Hoja'+n)>=0) n++; pushUndo(); sheet().sel={...sel}; ST.wb.sheets.push(blankSheet('Hoja'+n)); ST.cur=ST.wb.sheets.length-1; sel={ar:0,ac:0,fr:0,fc:0}; afterStructure(); }
+function addSheet(){ if(readOnly) return roToast(); let n=ST.wb.sheets.length+1; while(sheetIndex('Hoja'+n)>=0) n++; pushUndo(); sheet().sel={...sel}; ST.wb.sheets.push(blankSheet('Hoja'+n)); ST.cur=ST.wb.sheets.length-1; sel={ar:0,ac:0,fr:0,fc:0}; afterStructure(); }
 function deleteSheet(i=ST.cur){ if(ST.wb.sheets.length<2) return toast('Un libro debe contener al menos una hoja.'); pushUndo(); const name=ST.wb.sheets[i].name; ST.wb.sheets.splice(i,1); ST.cur=clamp(ST.cur>=i?ST.cur-1:ST.cur,0,ST.wb.sheets.length-1); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; afterStructure(); toast(`Se eliminó "${name}". Presiona Ctrl+Z para deshacer.`); }
 function dupSheet(i=ST.cur){ pushUndo(); const s=JSON.parse(JSON.stringify(ST.wb.sheets[i])); const base=s.name+' ('; let n=2; while(sheetIndex(base+n+')')>=0) n++; s.name=base+n+')'; ST.wb.sheets.splice(i+1,0,s); ST.cur=i+1; sel={...s.sel}; afterStructure(); }
 const quoteName = n => /^[A-Za-z_\u00C0-\u024F][A-Za-z0-9_.\u00C0-\u024F]*$/.test(n) && !/^[A-Za-z]{1,3}\d+$/.test(n) ? n : `'${n.replace(/'/g,"''")}'`;
@@ -2063,12 +2256,14 @@ function renameSheet(i, name){
   ST.wb.sheets[i].name=name; astCache.clear(); renderTabs(); changed();
 }
 function newWorkbook(sample){
+  if(labActive || readOnly){ toast('No disponible mientras trabajas en un examen o ejercicio.'); return; }
   pushUndo(); const w=sample?sampleWorkbook():{name:'Libro1', sheets:[blankSheet('Hoja1')]};
   ST.wb.sheets=w.sheets; ST.cur=0; sel={ar:0,ac:0,fr:0,fc:0}; clip=null; closeBackstage(); afterStructure();
   toast(sample ? 'Se cargó el libro de práctica. Ctrl+Z recupera el libro anterior.' : 'Libro en blanco nuevo. Ctrl+Z recupera el libro anterior.');
 }
 function wbStats(){ let cells=0, f=0; for(const sh of ST.wb.sheets) for(const k in sh.cells){ const v=sh.cells[k].v; if(v){ cells++; if(v[0]==='=') f++; } } toast(`${ST.wb.sheets.length} hojas · ${cells} celdas con datos · ${f} fórmulas`); }
 function clearCells(what){
+  if(readOnly) return roToast();
   pushUndo(); const sh=sheet();
   eachSel((r,c)=>{ const k=A(r,c); const cell=sh.cells[k]; if(!cell) return;
     if(what==='all') delete sh.cells[k]; else if(what==='formats') delete cell.s; else { cell.v=''; delete cell.str; } });
@@ -2105,7 +2300,7 @@ function devCounts(){
 const EDIT_SAFE=new Set(['fn','insertFn','autosum','undo','redo','save','ribbonToggle','zoomTo','zoom100','toggleView','toggleSkin','bold','italic','underline','strike','fillColor','fontColor','setFill','setFont']);
 const ACTIONS={
   undo, redo,
-  save:()=>{ const was=autosave; autosave=true; save(); autosave=was; toast('Guardado en este navegador.'); },
+  save:()=>{ if(!persist){ toast('Esta hoja no se guarda en el navegador: usa los botones de la barra superior.'); return; } const was=autosave; autosave=true; save(); autosave=was; toast('Guardado en este navegador.'); },
   cut:()=>{ copySel(true); clipToSystem(); },
   copy:()=>{ copySel(false); clipToSystem(); },
   paste:()=>pasteClip(), pasteValues:()=>pasteClip('values'), pasteFormats:()=>pasteClip('formats'),
@@ -2141,10 +2336,15 @@ const ACTIONS={
   devGuide:()=>openBackstage('dev'),
   toggleSkin:()=>{ setSkin(prefs.skin==='white'?'excel':'white'); toast(prefs.skin==='white'?'Tema Blanco activado.':'Tema Excel activado.'); },
 };
+/* Actions that never modify the workbook; the only ones allowed in read-only mode. */
+const RO_SAFE=new Set(['copy','toggleView','showFormulas','calcNow','tracePrec','removeArrows','viewNormal','zoom100','zoomTo','zoomSel','goSheet','goto','ribbonToggle','toggleSkin','wbStats','devGuide','insertFn']);
 function run(a, label, arg){
   if(!a){ toast(`"${label}" todavía no está disponible en este simulador.`); return; }
+  if(readOnly && !RO_SAFE.has(a)){ roToast(); return; }
   if(edit && !EDIT_SAFE.has(a)){ if(!commitEdit(0,0)) return; }
-  const f=ACTIONS[a]; if(f) f(arg); else toast(`"${label}" todavía no está disponible en este simulador.`);
+  const f=ACTIONS[a];
+  if(!f){ toast(`"${label}" todavía no está disponible en este simulador.`); return; }
+  try{ f(arg); }catch(err){ if(err===RO_BLOCK) roToast(); else throw err; }
 }
 function clipToSystem(){ try{ const p=navigator.clipboard && navigator.clipboard.writeText(lastClipText); if(p&&p.catch) p.catch(()=>{}); }catch(e){} }
 
@@ -2695,6 +2895,7 @@ function switchSheet(i){
   traceOn=false; refLayer.innerHTML=''; afterStructure(); scroller.scrollTo(0,0); ensureVisible(sel.ar,sel.ac);
 }
 function startRename(i){
+  if(readOnly) return roToast();
   const b=tabsEl.querySelector(`[data-i="${i}"]`); if(!b) return;
   b.innerHTML=`<input value="${esc(ST.wb.sheets[i].name)}" aria-label="Nombre de la hoja" maxlength="31">`;
   const inp=b.querySelector('input'); inp.focus(); inp.select();
@@ -2717,8 +2918,8 @@ document.body.classList.toggle('touch', touchUI);
 document.addEventListener('pointerdown', e=>{ const t=e.pointerType!=='mouse'; if(t!==touchUI){ touchUI=t; document.body.classList.toggle('touch',t); drawSel(); } }, true);
 scroller.addEventListener('pointerdown', e=>{
   if(e.button>0) return;
-  if(e.target.classList.contains('rsz')) return startResize(e);
-  if(e.target===handle) return startHandle(e);
+  if(e.target.classList.contains('rsz')) return readOnly ? undefined : startResize(e);
+  if(e.target===handle) return readOnly ? undefined : startHandle(e);
   if(e.target===ed) return;
   const th=e.target.closest('th'); if(th) return headerDown(th,e);
   const p=cellFromEl(e.target); if(!p) return;
@@ -2740,6 +2941,7 @@ scroller.addEventListener('pointerdown', e=>{
   select(p.r,p.c,e.shiftKey); drag={type:'sel'};
 });
 scroller.addEventListener('dblclick', e=>{
+  if(readOnly && (e.target.classList.contains('rsz') || e.target===handle)) return;
   if(e.target.classList.contains('rsz')){ const c=e.target.parentNode.cellIndex-1; sel={ar:sel.ar,ac:c,fr:sel.fr,fc:c}; autofit(); return; }
   if(e.target===handle){ const R=rng(); let n=0; if(R.c1>0){ while(R.r2+n+1<ROWS && hasContent(R.r2+n+1,R.c1-1)) n++; } doFill(R,'down',n); return; }
   const p=cellFromEl(e.target); if(!p || edit) return;
@@ -2895,6 +3097,7 @@ function moveInSelection(dr,dc){
 }
 document.addEventListener('keydown', e=>{
   const t=e.target;
+  if(t.closest && t.closest('.lab-ui')) return;   // lab screens (forms, nav, dialogs) own their keys
   if(e.altKey && (e.key==='q'||e.key==='Q')){ e.preventDefault(); $('#search').focus(); return; }
   if(t===ed || t===fbar){ if(edit) editKey(e); return; }
   if(!dlg.hidden){ if(e.key==='Escape') closeFnDialog(); return; }
@@ -2911,7 +3114,7 @@ document.addEventListener('keydown', e=>{
     const map={z:undo,y:redo,n:()=>toggleStyle('b'),k:()=>toggleStyle('i'),s:()=>toggleStyle('u'),e:selectAll,a:selectAll,
       '`':ACTIONS.showFormulas, g:ACTIONS.save, j:()=>fillDir('down'), d:()=>fillDir('right'), i:ACTIONS.goto,
       home:()=>{ select(0,0); ensureVisible(0,0); }, end:()=>{ let mr=0,mc=0; for(const key in sheet().cells){ const p=parseA(key); if(p&&hasContent(p.r,p.c)){ mr=Math.max(mr,p.r); mc=Math.max(mc,p.c); } } select(mr,mc); ensureVisible(mr,mc); }};
-    if(map[l]){ e.preventDefault(); map[l](); }
+    if(map[l]){ e.preventDefault(); try{ map[l](); }catch(err){ if(err===RO_BLOCK) roToast(); else throw err; } }
     return;
   }
   if(e.altKey && k==='='){ e.preventDefault(); autosum('SUM'); return; }
@@ -2932,7 +3135,8 @@ document.addEventListener('copy', e=>{ if(edit || (e.target.closest && e.target.
 document.addEventListener('cut', e=>{ if(edit || (e.target.closest && e.target.closest('input,textarea'))) return; e.preventDefault(); e.clipboardData.setData('text/plain', copySel(true)); });
 document.addEventListener('paste', e=>{
   if(edit || (e.target.closest && e.target.closest('input,textarea'))) return;
-  e.preventDefault(); const text=(e.clipboardData||window.clipboardData).getData('text/plain')||'';
+  e.preventDefault(); if(readOnly) return roToast();
+  const text=(e.clipboardData||window.clipboardData).getData('text/plain')||'';
   if(clip && (!text || text.replace(/\r/g,'')===lastClipText)) return pasteClip();
   if(text) pasteText(text); else pasteClip();
 });
@@ -3104,7 +3308,2262 @@ sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})};
 renderKb();
 applyPhone();
 afterStructure();
-setTimeout(()=>toast(isPhone ? 'Toca una celda dos veces para escribir. Usa = para empezar una fórmula.' : `Consejo: selecciona una celda y escribe = para empezar una fórmula. Los argumentos se separan con "${SEP()}". F4 alterna referencias relativas y absolutas.`), 600);
+setTimeout(()=>{ if(!labActive) toast(isPhone ? 'Toca una celda dos veces para escribir. Usa = para empezar una fórmula.' : `Consejo: selecciona una celda y escribe = para empezar una fórmula. Los argumentos se separan con "${SEP()}". F4 alterna referencias relativas y absolutas.`); }, 600);
+
+/* ================= Lab integration API (used by lab.js; harmless when unused) ================= */
+window.addEventListener('error', e=>{ if(e.error===RO_BLOCK){ e.preventDefault(); roToast(); } });
+const SANE={maxSheets:100, maxCells:100000, maxStr:32768};
+function setReadOnlyFlag(v){
+  v=!!v; if(v===readOnly) return;
+  if(v && edit) cancelEdit();
+  readOnly=v; painter=null; fillMode=false; document.body.classList.remove('painting');
+  document.body.classList.toggle('readonly', v);
+  fbar.readOnly=v; setMode('ready'); drawSel();
+}
+function swapWorkbook(wb, cur){
+  if(edit) cancelEdit();
+  ST.wb=wb; ST.cur=clamp(Math.trunc(+cur)||0,0,wb.sheets.length-1);
+  undoStack.length=0; redoStack.length=0; clip=null; painter=null; traceOn=false; refLayer.innerHTML=''; hidePop();
+  document.body.classList.remove('painting');
+  sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})};
+  silentChange=true;
+  try{ afterStructure(); }finally{ silentChange=false; }
+  scroller.scrollTop=0; scroller.scrollLeft=0;
+}
+window.Lab = {
+  /** Loads a workbook into the grid without touching the saved practice workbook. */
+  loadWorkbook(wb, opts){
+    opts=opts||{};
+    const clean=window.GridEngine.sanitizeWorkbook(wb, SANE);
+    if(!labActive){ practiceStash=JSON.stringify({wb:ST.wb, cur:ST.cur}); labActive=true; persist=false; document.body.classList.add('lab-sim'); }
+    setReadOnlyFlag(!!opts.readOnly);
+    swapWorkbook(clean, 0);
+    $('#bookName').textContent=opts.title||clean.name||'Libro1';
+  },
+  /** Current workbook as plain JSON (commits a pending cell edit first). */
+  getWorkbook(){
+    if(edit) commitEdit(0,0);
+    sheet().sel={...sel};
+    return JSON.parse(JSON.stringify({name:ST.wb.name||'Libro1', sheets:ST.wb.sheets}));
+  },
+  setReadOnly: setReadOnlyFlag,
+  isReadOnly: ()=>readOnly,
+  isActive: ()=>labActive,
+  /** Subscribes to workbook changes (not fired by loadWorkbook). Returns an unsubscribe function. */
+  onChange(cb){ changeCbs.push(cb); return ()=>{ const i=changeCbs.indexOf(cb); if(i>=0) changeCbs.splice(i,1); }; },
+  /** Leaves exam/exercise mode and brings the free-practice workbook back. */
+  resetToPractice(){
+    if(!labActive) return;
+    labActive=false; persist=true; document.body.classList.remove('lab-sim');
+    setReadOnlyFlag(false);
+    let restored=false;
+    try{ if(practiceStash){ const d=JSON.parse(practiceStash); swapWorkbook(window.GridEngine.sanitizeWorkbook(d.wb, SANE), d.cur); restored=true; } }catch(e){}
+    if(!restored){ load(); sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})}; swapWorkbook(ST.wb, ST.cur); }
+    practiceStash=null; $('#bookName').textContent=ST.wb.name||'Libro1';
+    $('#saveState').textContent='· Guardado en este navegador';
+  },
+  setSaveLabel(text){ $('#saveState').textContent=text; },
+  toast(msg){ toast(msg); },
+  /** Call after the simulator becomes visible again (it is measured with offsetLeft/Top). */
+  refresh(){ requestAnimationFrame(()=>{ applyColWidths(); drawSel(); if(edit) positionEditor(); }); },
+};
+})();
+</script>
+<script>
+/* =====================================================================
+   GridLab lab core: pure logic for the exam/exercise screens (no DOM, no network).
+
+   Same trick as engine.js: an IIFE that assigns LabCore on the object it receives as
+   `globalThis`, so the browser uses it through a plain <script> and the tests evaluate the file
+   with a private holder. Everything here is covered by server/test/labcore.test.ts.
+   ===================================================================== */
+(function (root) {
+'use strict';
+
+/* ---------- Small helpers ---------- */
+const isBlank = v => v === undefined || v === null || String(v).trim() === '';
+const round2 = x => Math.round(x * 100) / 100;
+const pad2 = n => String(n).padStart(2, '0');
+
+/** 17.5 -> "17,5"; 20 -> "20" (Spanish decimal comma, at most 2 decimals). */
+function formatNumber(x) {
+  if (typeof x !== 'number' || !isFinite(x)) return '-';
+  return String(round2(x)).replace('.', ',');
+}
+function formatGrade(grade, scale) {
+  if (grade === null || grade === undefined) return '-';
+  return formatNumber(grade) + ' / ' + formatNumber(scale);
+}
+function formatPercent(p) {
+  return p === null || p === undefined ? '-' : formatNumber(p) + ' %';
+}
+
+/* ---------- Routing (hash based) ---------- */
+const ID = '([A-Za-z0-9-]{1,64})';
+const ROUTES = [
+  ['practice', /^\/practica$/, [], 'public'],
+  ['login', /^\/login$/, [], 'public'],
+  ['register', /^\/registro$/, [], 'public'],
+  ['exams', /^\/examenes$/, [], 'user'],
+  ['exam', new RegExp('^/examenes/' + ID + '$'), ['id'], 'user'],
+  ['attempt', new RegExp('^/intento/' + ID + '$'), ['id'], 'user'],
+  ['results', /^\/resultados$/, [], 'user'],
+  ['adminHome', /^\/admin$/, [], 'admin'],
+  ['adminExercises', /^\/admin\/ejercicios$/, [], 'admin'],
+  ['adminExerciseNew', /^\/admin\/ejercicios\/nuevo$/, [], 'admin'],
+  ['adminExerciseNewSheet', /^\/admin\/ejercicios\/nuevo\/hoja$/, [], 'admin'],
+  ['adminExercise', new RegExp('^/admin/ejercicios/' + ID + '$'), ['id'], 'admin'],
+  ['adminExerciseSheet', new RegExp('^/admin/ejercicios/' + ID + '/hoja$'), ['id'], 'admin'],
+  ['adminExams', /^\/admin\/examenes$/, [], 'admin'],
+  ['adminExamNew', /^\/admin\/examenes\/nuevo$/, [], 'admin'],
+  ['adminExam', new RegExp('^/admin/examenes/' + ID + '$'), ['id'], 'admin'],
+  ['adminResults', /^\/admin\/resultados$/, [], 'admin'],
+  ['adminAttempt', new RegExp('^/admin/intentos/' + ID + '$'), ['id'], 'admin'],
+];
+
+function parseQuery(qs) {
+  const out = {};
+  const params = new URLSearchParams(String(qs || '').replace(/^\?/, ''));
+  for (const [k, v] of params) out[k] = v;
+  return out;
+}
+
+/** "#/examenes/abc?x=1" -> { path: "/examenes/abc", query: { x: "1" } } */
+function parseHash(hash) {
+  let h = String(hash || '').replace(/^#/, '');
+  let query = {};
+  const qi = h.indexOf('?');
+  if (qi >= 0) {
+    query = parseQuery(h.slice(qi + 1));
+    h = h.slice(0, qi);
+  }
+  if (!h.startsWith('/')) h = '/' + h;
+  h = h.replace(/\/+$/, '') || '/';
+  return { path: h, query };
+}
+
+/** Resolves a hash to { name, params, query, path, access }. Unknown paths give name "notFound". */
+function matchRoute(hash) {
+  const { path, query } = parseHash(hash);
+  for (const [name, re, keys, access] of ROUTES) {
+    const m = re.exec(path);
+    if (!m) continue;
+    const params = {};
+    keys.forEach((k, i) => { params[k] = m[i + 1]; });
+    return { name, params, query, path, access };
+  }
+  return { name: path === '/' ? 'root' : 'notFound', params: {}, query, path, access: 'public' };
+}
+
+/**
+ * Accepts "#/examenes/x" or "/examenes/x" and returns the normalized "#/..." hash, or null when the
+ * value is not an internal route that makes sense as a login redirect target.
+ */
+function safeNext(value) {
+  if (typeof value !== 'string' || !value || value.length > 300) return null;
+  let v = value.trim();
+  if (v.startsWith('#')) v = v.slice(1);
+  if (!v.startsWith('/') || v.startsWith('//')) return null;
+  const r = matchRoute(v);
+  if (r.name === 'notFound' || r.name === 'root' || r.name === 'login' || r.name === 'register') return null;
+  return '#' + v;
+}
+
+const UUID_LIKE = /^[0-9a-fA-F-]{8,64}$/;
+
+/**
+ * Deep links from other sites: "/?exam=<id>" opens the instruction screen of that exam (after login).
+ * "/?next=%23/examenes/<id>" works for any internal route. Returns a hash or null.
+ */
+function deepLinkTarget(search, hash) {
+  const q = parseQuery(search);
+  if (q.exam && UUID_LIKE.test(q.exam)) return '#/examenes/' + q.exam;
+  if (q.next) {
+    const n = safeNext(q.next);
+    if (n) return n;
+  }
+  const inHash = parseHash(hash).query;
+  if (inHash.exam && UUID_LIKE.test(inHash.exam)) return '#/examenes/' + inHash.exam;
+  return null;
+}
+
+const loginHash = next => '#/login' + (next ? '?next=' + encodeURIComponent(next) : '');
+const registerHash = next => '#/registro' + (next ? '?next=' + encodeURIComponent(next) : '');
+
+/* ---------- Server clock and countdown ---------- */
+
+/**
+ * The browser clock is only used to measure elapsed time. The offset to the server clock is
+ * computed from the `serverNow` the API sends (assuming the response left halfway through the
+ * round trip) and refreshed whenever a response carries a server timestamp.
+ */
+function createClock(localNow) {
+  const now = localNow || Date.now;
+  let offset = 0;
+  let synced = false;
+  return {
+    sync(serverIso, sentAt, receivedAt) {
+      const server = Date.parse(serverIso);
+      if (isNaN(server)) return false;
+      const sent = typeof sentAt === 'number' ? sentAt : now();
+      const received = typeof receivedAt === 'number' ? receivedAt : sent;
+      offset = server - (sent + received) / 2;
+      synced = true;
+      return true;
+    },
+    get synced() { return synced; },
+    get offset() { return offset; },
+    now() { return now() + offset; },
+    remainingMs(deadlineIso) {
+      const deadline = Date.parse(deadlineIso);
+      return isNaN(deadline) ? 0 : Math.max(0, deadline - (now() + offset));
+    },
+  };
+}
+
+/** 754000 -> "12:34"; 3_725_000 -> "1:02:05". */
+function formatDuration(ms) {
+  const total = Math.max(0, Math.ceil(ms / 1000));
+  const h = Math.floor(total / 3600);
+  const m = Math.floor((total % 3600) / 60);
+  const s = total % 60;
+  return h > 0 ? h + ':' + pad2(m) + ':' + pad2(s) : pad2(m) + ':' + pad2(s);
+}
+
+/** Visual level of the timer: ok, warn (5 min or less), danger (1 min or less), over (time is up). */
+function timerLevel(ms) {
+  if (ms <= 0) return 'over';
+  if (ms <= 60000) return 'danger';
+  if (ms <= 300000) return 'warn';
+  return 'ok';
+}
+
+/* ---------- Debounced autosave ---------- */
+
+/**
+ * Debounces and serializes saves. markDirty() schedules save(); flush() saves right now (waits for
+ * a save in flight); a change that arrives while saving triggers one more save. Failures keep the
+ * dirty flag and retry after retryMs. Timers are injectable for tests.
+ */
+function createAutosaver(opts) {
+  const delay = opts.delay == null ? 2500 : opts.delay;
+  const retryMs = opts.retryMs == null ? 10000 : opts.retryMs;
+  const setT = opts.setTimeout || setTimeout;
+  const clearT = opts.clearTimeout || clearTimeout;
+  let timer = null;
+  let dirty = false;
+  let running = null;
+  let stopped = false;
+  const clear = () => { if (timer !== null) { clearT(timer); timer = null; } };
+  const schedule = ms => { clear(); if (!stopped) timer = setT(() => { timer = null; run(); }, ms); };
+
+  async function run() {
+    if (running) return running;
+    if (!dirty) return;
+    running = (async () => {
+      try {
+        while (dirty && !stopped) {
+          dirty = false;
+          try {
+            await opts.save();
+            if (opts.onSaved) opts.onSaved();
+          } catch (err) {
+            dirty = true;
+            if (opts.onError) opts.onError(err);
+            if (opts.fatal && opts.fatal(err)) { stopped = true; clear(); return; }
+            schedule(retryMs);
+            return;
+          }
+        }
+      } finally {
+        running = null;
+      }
+    })();
+    return running;
+  }
+
+  return {
+    markDirty() { if (stopped) return; dirty = true; if (!running) schedule(delay); },
+    async flush() { clear(); if (running) await running; if (dirty) await run(); },
+    stop() { stopped = true; clear(); },
+    get dirty() { return dirty; },
+    get saving() { return !!running; },
+  };
+}
+
+/* ---------- Errors ---------- */
+
+const CODE_MESSAGES = {
+  NETWORK: 'No se pudo conectar con el servidor. Revisa tu conexión e inténtalo de nuevo.',
+  INTERNAL: 'Ocurrió un error inesperado. Inténtalo de nuevo.',
+  UNAUTHENTICATED: 'Tu sesión terminó. Inicia sesión para continuar.',
+  FORBIDDEN: 'No tienes permisos para realizar esta acción.',
+  INVALID_CREDENTIALS: 'Correo o contraseña incorrectos.',
+  EMAIL_TAKEN: 'Ya existe una cuenta con ese correo.',
+  TOO_MANY_ATTEMPTS: 'Demasiados intentos. Espera un minuto e inténtalo de nuevo.',
+  BAD_ORIGIN: 'Solicitud no permitida desde este origen.',
+  INSTRUCTIONS_NOT_ACCEPTED: 'Debes aceptar las instrucciones para comenzar.',
+  NO_ATTEMPTS_LEFT: 'Ya usaste todos tus intentos para este examen.',
+  EXAM_NOT_OPEN: 'Este examen todavía no está disponible.',
+  EXAM_CLOSED: 'Este examen ya cerró.',
+  EXAM_EMPTY: 'El examen necesita al menos un ejercicio.',
+  ATTEMPT_EXPIRED: 'El tiempo del examen terminó.',
+  ATTEMPT_CLOSED: 'Este intento ya fue enviado.',
+  EXERCISE_ALREADY_SUBMITTED: 'Este ejercicio ya fue enviado y no se puede modificar.',
+  INVALID_WORKBOOK: 'El libro es demasiado grande o no es válido (máximo 20 hojas y 8000 celdas con datos).',
+  PAYLOAD_TOO_LARGE: 'Los datos superan el tamaño permitido.',
+};
+
+/** Field names (as the API reports them) -> labels shown to the user. */
+const FIELD_LABELS = {
+  name: 'Nombre', email: 'Correo', password: 'Contraseña',
+  title: 'Título', instructions: 'Instrucciones', points: 'Puntos', status: 'Estado', workbook: 'Hoja inicial', checks: 'Verificaciones',
+  durationMinutes: 'Duración', maxAttempts: 'Intentos máximos', pickCount: 'Ejercicios por intento', scale: 'Escala',
+  passPercent: 'Porcentaje para aprobar', gradePolicy: 'Nota del examen', availableFrom: 'Disponible desde', availableUntil: 'Disponible hasta',
+  exerciseIds: 'Ejercicios',
+  sheet: 'hoja', cell: 'celda', expected: 'valor esperado', tolerance: 'tolerancia', functions: 'funciones', range: 'rango', label: 'etiqueta',
+};
+
+/** "checks.2.cell" -> "Verificación 3: celda"; "title" -> "Título". */
+function describeField(path) {
+  const parts = String(path).split('.');
+  if (parts[0] === 'checks' && /^\d+$/.test(parts[1] || '')) {
+    const rest = parts.slice(2).filter(p => !/^\d+$/.test(p));
+    const what = rest.length ? (FIELD_LABELS[rest[0]] || rest[0]).toLowerCase() : '';
+    return 'Verificación ' + (Number(parts[1]) + 1) + (what ? ': ' + what : '');
+  }
+  return FIELD_LABELS[parts[0]] || parts[0];
+}
+
+/** Friendly Spanish message for an ApiError-like object { status, code, message, fields }. */
+function errorMessage(err) {
+  if (!err) return CODE_MESSAGES.INTERNAL;
+  if (err.code === 'VALIDATION' && Array.isArray(err.fields) && err.fields.length) {
+    const names = [...new Set(err.fields.map(describeField))];
+    return 'Revisa estos datos: ' + names.join(', ') + '.';
+  }
+  if (err.code && CODE_MESSAGES[err.code] && !err.message) return CODE_MESSAGES[err.code];
+  if (err.code === 'NETWORK' || err.code === 'INTERNAL') return CODE_MESSAGES[err.code];
+  if (err.message) return err.message;
+  return CODE_MESSAGES[err.code] || CODE_MESSAGES.INTERNAL;
+}
+
+/** Top-level API field names -> true, used to mark inputs in a form. Check rows use "checks.<i>.<field>". */
+function fieldSet(err) {
+  const set = new Set();
+  if (err && Array.isArray(err.fields)) for (const f of err.fields) set.add(String(f));
+  return set;
+}
+
+/* ---------- Auth form validation ---------- */
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+function validateLogin(v) {
+  const errors = {};
+  if (isBlank(v.email)) errors.email = 'Escribe tu correo.';
+  else if (!EMAIL_RE.test(String(v.email).trim())) errors.email = 'Escribe un correo válido.';
+  if (!v.password) errors.password = 'Escribe tu contraseña.';
+  return errors;
+}
+
+function validateRegister(v) {
+  const errors = {};
+  if (isBlank(v.name)) errors.name = 'Escribe tu nombre.';
+  else if (String(v.name).trim().length > 120) errors.name = 'El nombre es demasiado largo (máximo 120 caracteres).';
+  if (isBlank(v.email)) errors.email = 'Escribe tu correo.';
+  else if (!EMAIL_RE.test(String(v.email).trim())) errors.email = 'Escribe un correo válido.';
+  if (!v.password) errors.password = 'Escribe una contraseña.';
+  else if (String(v.password).length < 8) errors.password = 'La contraseña debe tener al menos 8 caracteres.';
+  else if (String(v.password).length > 256) errors.password = 'La contraseña es demasiado larga.';
+  if (!v.confirm) errors.confirm = 'Repite la contraseña.';
+  else if (v.confirm !== v.password) errors.confirm = 'Las contraseñas no coinciden.';
+  return errors;
+}
+
+/* ---------- Check editor <-> API payload ---------- */
+const CELL_RE = /^[A-Za-z]{1,3}[0-9]{1,4}$/;
+const RANGE_RE = /^([A-Za-z]{1,3})([0-9]{1,4}):([A-Za-z]{1,3})([0-9]{1,4})$/;
+const CHECK_TYPES = [
+  { value: 'cell_value', label: 'Valor de una celda' },
+  { value: 'cell_formula_uses', label: 'La celda usa funciones' },
+  { value: 'range_values', label: 'Valores de un rango' },
+];
+
+function colNumber(letters) {
+  let n = 0;
+  for (const ch of letters.toUpperCase()) n = n * 26 + ch.charCodeAt(0) - 64;
+  return n;
+}
+/** "C2:C5" -> { rows: 4, cols: 1 } (normalizes reversed ranges), or null. */
+function rangeDims(range) {
+  const m = RANGE_RE.exec(String(range || '').trim());
+  if (!m) return null;
+  const c1 = colNumber(m[1]), c2 = colNumber(m[3]), r1 = +m[2], r2 = +m[4];
+  return { rows: Math.abs(r2 - r1) + 1, cols: Math.abs(c2 - c1) + 1 };
+}
+
+/** Text typed by the author -> scalar: numbers, VERDADERO/FALSO, "quoted" forces text, anything else is text. */
+function parseScalar(text) {
+  const t = String(text).trim();
+  if (t.length >= 2 && t.startsWith('"') && t.endsWith('"')) return t.slice(1, -1);
+  if (/^-?\d+([.,]\d+)?$/.test(t)) return Number(t.replace(',', '.'));
+  if (/^(VERDADERO|TRUE)$/i.test(t)) return true;
+  if (/^(FALSO|FALSE)$/i.test(t)) return false;
+  return t;
+}
+function scalarToText(v) {
+  if (typeof v === 'boolean') return v ? 'VERDADERO' : 'FALSO';
+  if (typeof v === 'number') return String(v);
+  const s = v === null || v === undefined ? '' : String(v);
+  const needsQuotes = /^-?\d+([.,]\d+)?$/.test(s.trim()) || /^(VERDADERO|TRUE|FALSO|FALSE)$/i.test(s.trim()) || (s.length >= 2 && s.startsWith('"') && s.endsWith('"'));
+  return needsQuotes ? '"' + s + '"' : s;
+}
+
+/** Text grid: one row per line, cells separated by ";", "|" or a tab (Excel paste). */
+function parseMatrix(text) {
+  const lines = String(text || '').replace(/\r/g, '').split('\n');
+  while (lines.length && lines[lines.length - 1].trim() === '') lines.pop();
+  return lines.map(line => line.split(/\t|;|\|/).map(parseScalar));
+}
+function matrixToText(matrix) {
+  return (matrix || []).map(row => row.map(scalarToText).join(' ; ')).join('\n');
+}
+
+function blankCheckRow(type) {
+  return { type: type || 'cell_value', sheet: '', cell: '', expected: '', tolerance: '', ignoreCase: false, requireFormula: false, functions: '', range: '', matrix: '', points: '1', label: '' };
+}
+
+/** API check -> editable row (all values as strings, ready for inputs). */
+function checkToRow(check) {
+  const row = blankCheckRow(check.type);
+  row.sheet = check.sheet || '';
+  row.points = String(check.points == null ? 1 : check.points);
+  row.label = check.label || '';
+  if (check.type === 'cell_value') {
+    row.cell = check.cell || '';
+    row.expected = scalarToText(check.expected);
+    row.tolerance = check.tolerance == null ? '' : String(check.tolerance);
+    row.ignoreCase = !!check.ignoreCase;
+    row.requireFormula = !!check.requireFormula;
+  } else if (check.type === 'cell_formula_uses') {
+    row.cell = check.cell || '';
+    row.functions = (check.functions || []).join(', ');
+  } else if (check.type === 'range_values') {
+    row.range = check.range || '';
+    row.matrix = matrixToText(check.expected);
+    row.tolerance = check.tolerance == null ? '' : String(check.tolerance);
+    row.ignoreCase = !!check.ignoreCase;
+  }
+  return row;
+}
+
+function parseNumber(text) {
+  const t = String(text).trim().replace(',', '.');
+  return t !== '' && /^-?\d+(\.\d+)?(e[+-]?\d+)?$/i.test(t) ? Number(t) : NaN;
+}
+
+/** Editable row -> { ok, check } or { ok:false, errors: { field: message } }. */
+function rowToCheck(row) {
+  const errors = {};
+  const out = { type: row.type };
+  const sheet = String(row.sheet || '').trim();
+  if (sheet) {
+    if (sheet.length > 31) errors.sheet = 'El nombre de la hoja tiene máximo 31 caracteres.';
+    else out.sheet = sheet;
+  }
+  const points = parseNumber(row.points);
+  if (isNaN(points) || points <= 0 || points > 1000) errors.points = 'Los puntos deben ser un número entre 0 y 1000.';
+  const label = String(row.label || '').trim();
+  if (label.length > 200) errors.label = 'La etiqueta es demasiado larga (máximo 200).';
+
+  const tolerance = isBlank(row.tolerance) ? null : parseNumber(row.tolerance);
+  if (tolerance !== null && (isNaN(tolerance) || tolerance < 0)) errors.tolerance = 'La tolerancia debe ser un número mayor o igual a 0.';
+
+  if (row.type === 'cell_value') {
+    const cell = String(row.cell || '').trim();
+    if (!CELL_RE.test(cell)) errors.cell = 'Escribe una celda válida, por ejemplo B8.';
+    else out.cell = cell.toUpperCase();
+    if (String(row.expected).trim() === '') errors.expected = 'Escribe el valor esperado.';
+    else {
+      const expected = parseScalar(row.expected);
+      if (typeof expected === 'string' && expected.length > 2000) errors.expected = 'El valor esperado es demasiado largo.';
+      out.expected = expected;
+    }
+    if (tolerance !== null && !errors.tolerance) out.tolerance = tolerance;
+    if (row.ignoreCase) out.ignoreCase = true;
+    if (row.requireFormula) out.requireFormula = true;
+  } else if (row.type === 'cell_formula_uses') {
+    const cell = String(row.cell || '').trim();
+    if (!CELL_RE.test(cell)) errors.cell = 'Escribe una celda válida, por ejemplo B8.';
+    else out.cell = cell.toUpperCase();
+    const fns = String(row.functions || '').split(/[,;\s]+/).map(s => s.trim()).filter(Boolean);
+    if (!fns.length) errors.functions = 'Escribe al menos una función, por ejemplo SUMA.';
+    else if (fns.length > 20 || fns.some(f => f.length > 40)) errors.functions = 'Máximo 20 funciones de hasta 40 caracteres.';
+    else out.functions = fns;
+  } else if (row.type === 'range_values') {
+    const range = String(row.range || '').trim();
+    const dims = rangeDims(range);
+    if (!dims) errors.range = 'Escribe un rango válido, por ejemplo C2:C5.';
+    else out.range = range.toUpperCase();
+    const matrix = parseMatrix(row.matrix);
+    if (!matrix.length) errors.matrix = 'Escribe los valores esperados, una fila por línea.';
+    else if (dims) {
+      const ragged = matrix.some(r => r.length !== matrix[0].length);
+      if (ragged) errors.matrix = 'Todas las filas deben tener la misma cantidad de celdas.';
+      else if (matrix.length !== dims.rows || matrix[0].length !== dims.cols) {
+        errors.matrix = 'El rango ' + range.toUpperCase() + ' tiene ' + dims.rows + ' fila(s) y ' + dims.cols + ' columna(s), pero escribiste ' + matrix.length + ' fila(s) y ' + matrix[0].length + ' columna(s).';
+      } else if (matrix.length > 200 || matrix[0].length > 26) errors.matrix = 'El rango es demasiado grande.';
+      else out.expected = matrix;
+    }
+    if (tolerance !== null && !errors.tolerance) out.tolerance = tolerance;
+    if (row.ignoreCase) out.ignoreCase = true;
+  } else {
+    errors.type = 'Tipo de verificación desconocido.';
+  }
+
+  if (!errors.points) out.points = points;
+  if (label) out.label = label;
+  return Object.keys(errors).length ? { ok: false, errors } : { ok: true, check: out };
+}
+
+/** All rows -> { ok, checks, errors: [{ index, errors }] }. */
+function rowsToChecks(rows) {
+  const checks = [];
+  const errors = [];
+  rows.forEach((row, index) => {
+    const r = rowToCheck(row);
+    if (r.ok) checks.push(r.check);
+    else errors.push({ index, errors: r.errors });
+  });
+  if (rows.length > 50) errors.push({ index: -1, errors: { checks: 'Máximo 50 verificaciones.' } });
+  return { ok: errors.length === 0, checks, errors };
+}
+
+/* ---------- Exercise and exam forms ---------- */
+
+function validateExerciseForm(f) {
+  const errors = {};
+  if (isBlank(f.title)) errors.title = 'Escribe un título.';
+  else if (String(f.title).trim().length > 200) errors.title = 'El título es demasiado largo (máximo 200).';
+  const points = parseNumber(f.points);
+  if (isNaN(points) || points <= 0 || points > 1000) errors.points = 'Los puntos deben ser un número entre 0 y 1000.';
+  if (String(f.instructions || '').length > 20000) errors.instructions = 'Las instrucciones son demasiado largas.';
+  if (f.status !== 'draft' && f.status !== 'published') errors.status = 'Elige un estado.';
+  return errors;
+}
+
+function exerciseFormToPayload(f, checks, workbook) {
+  const payload = {
+    title: String(f.title).trim(),
+    instructions: String(f.instructions || ''),
+    points: parseNumber(f.points),
+    status: f.status,
+    checks,
+  };
+  if (workbook) payload.workbook = workbook;
+  return payload;
+}
+
+/** ISO string -> value for <input type="datetime-local"> in local time ("" for null). */
+function isoToLocalInput(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '';
+  return d.getFullYear() + '-' + pad2(d.getMonth() + 1) + '-' + pad2(d.getDate()) + 'T' + pad2(d.getHours()) + ':' + pad2(d.getMinutes());
+}
+/** "2030-01-01T10:00" (local time) -> ISO string, or null for "". NaN-safe: returns undefined if invalid. */
+function localInputToIso(value) {
+  if (isBlank(value)) return null;
+  const d = new Date(value);
+  return isNaN(d.getTime()) ? undefined : d.toISOString();
+}
+
+function examToForm(exam) {
+  return {
+    title: exam.title || '',
+    instructions: exam.instructions || '',
+    durationMinutes: String(exam.durationMinutes == null ? 60 : exam.durationMinutes),
+    maxAttempts: String(exam.maxAttempts == null ? 2 : exam.maxAttempts),
+    pickCount: exam.pickCount == null ? '' : String(exam.pickCount),
+    scale: String(exam.scale == null ? 20 : exam.scale),
+    passPercent: String(exam.passPercent == null ? 60 : exam.passPercent),
+    gradePolicy: exam.gradePolicy || 'best',
+    status: exam.status || 'draft',
+    availableFrom: isoToLocalInput(exam.availableFrom),
+    availableUntil: isoToLocalInput(exam.availableUntil),
+  };
+}
+
+function isIntIn(text, lo, hi) {
+  const n = parseNumber(text);
+  return Number.isInteger(n) && n >= lo && n <= hi;
+}
+
+function validateExamForm(f) {
+  const errors = {};
+  if (isBlank(f.title)) errors.title = 'Escribe un título.';
+  else if (String(f.title).trim().length > 200) errors.title = 'El título es demasiado largo (máximo 200).';
+  if (!isIntIn(f.durationMinutes, 1, 600)) errors.durationMinutes = 'La duración debe ser un número entero de minutos entre 1 y 600.';
+  if (!isIntIn(f.maxAttempts, 1, 20)) errors.maxAttempts = 'Los intentos deben ser un número entero entre 1 y 20.';
+  if (!isBlank(f.pickCount) && !isIntIn(f.pickCount, 1, 500)) errors.pickCount = 'Déjalo vacío para usar todos los ejercicios, o escribe un entero entre 1 y 500.';
+  const scale = parseNumber(f.scale);
+  if (isNaN(scale) || scale <= 0 || scale > 1000) errors.scale = 'La escala debe ser un número mayor que 0 (por ejemplo 20).';
+  const pass = parseNumber(f.passPercent);
+  if (isNaN(pass) || pass < 0 || pass > 100) errors.passPercent = 'El porcentaje debe estar entre 0 y 100.';
+  if (f.gradePolicy !== 'best' && f.gradePolicy !== 'last') errors.gradePolicy = 'Elige cómo se calcula la nota.';
+  if (f.status !== 'draft' && f.status !== 'published') errors.status = 'Elige un estado.';
+  const from = localInputToIso(f.availableFrom), until = localInputToIso(f.availableUntil);
+  if (from === undefined) errors.availableFrom = 'Fecha no válida.';
+  if (until === undefined) errors.availableUntil = 'Fecha no válida.';
+  if (from && until && Date.parse(from) >= Date.parse(until)) errors.availableUntil = 'La fecha de cierre debe ser posterior a la de apertura.';
+  if (String(f.instructions || '').length > 20000) errors.instructions = 'Las instrucciones son demasiado largas.';
+  return errors;
+}
+
+function examFormToPayload(f) {
+  return {
+    title: String(f.title).trim(),
+    instructions: String(f.instructions || ''),
+    durationMinutes: parseNumber(f.durationMinutes),
+    maxAttempts: parseNumber(f.maxAttempts),
+    pickCount: isBlank(f.pickCount) ? null : parseNumber(f.pickCount),
+    scale: parseNumber(f.scale),
+    passPercent: parseNumber(f.passPercent),
+    gradePolicy: f.gradePolicy,
+    status: f.status,
+    availableFrom: localInputToIso(f.availableFrom) || null,
+    availableUntil: localInputToIso(f.availableUntil) || null,
+  };
+}
+
+/** Moves an item inside a copy of the array (used by the exam exercise picker). */
+function moveItem(list, from, to) {
+  if (from < 0 || from >= list.length || to < 0 || to >= list.length || from === to) return list.slice();
+  const copy = list.slice();
+  const [item] = copy.splice(from, 1);
+  copy.splice(to, 0, item);
+  return copy;
+}
+
+/* ---------- Student exam cards ---------- */
+
+/**
+ * State of an exam card for a student.
+ * key: running | available | not_open | closed | no_attempts
+ */
+function examCardState(exam) {
+  if (exam.inProgressAttemptId) return { key: 'running', label: 'En curso', cta: 'Continuar', canStart: true, resume: true };
+  if (exam.window === 'closed') return { key: 'closed', label: 'Cerrado', cta: 'Cerrado', canStart: false };
+  if (exam.window === 'not_open') return { key: 'not_open', label: 'Aún no disponible', cta: 'No disponible', canStart: false };
+  if (exam.attemptsRemaining <= 0) return { key: 'no_attempts', label: 'Sin intentos', cta: 'Sin intentos', canStart: false };
+  return { key: 'available', label: 'Disponible', cta: exam.attemptsUsed > 0 ? 'Nuevo intento' : 'Comenzar', canStart: true };
+}
+
+const STATUS_LABELS = { in_progress: 'En curso', submitted: 'Enviado', expired: 'Tiempo agotado', draft: 'Borrador', published: 'Publicado' };
+const statusLabel = s => STATUS_LABELS[s] || s;
+
+/** Progress of a running attempt: how many exercises were already submitted. */
+function attemptProgress(view) {
+  const total = view.exercises.length;
+  const submitted = view.exercises.filter(e => e.submitted).length;
+  return { total, submitted, pending: total - submitted };
+}
+
+/** JSON of a workbook without per-sheet selection, to tell real edits from cursor moves. */
+function workbookKey(wb) {
+  return JSON.stringify(wb, (k, v) => (k === 'sel' ? undefined : v));
+}
+
+root.LabCore = {
+  formatNumber, formatGrade, formatPercent,
+  parseQuery, parseHash, matchRoute, safeNext, deepLinkTarget, loginHash, registerHash,
+  createClock, formatDuration, timerLevel, createAutosaver,
+  errorMessage, describeField, fieldSet, CODE_MESSAGES,
+  validateLogin, validateRegister,
+  CHECK_TYPES, blankCheckRow, checkToRow, rowToCheck, rowsToChecks, parseScalar, scalarToText, parseMatrix, matrixToText, rangeDims,
+  validateExerciseForm, exerciseFormToPayload, examToForm, validateExamForm, examFormToPayload, isoToLocalInput, localInputToIso,
+  moveItem, examCardState, statusLabel, attemptProgress, workbookKey,
+};
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+</script>
+<script>
+/* =====================================================================
+   GridLab lab UI: shell, router, auth, student exams and the exam runner.
+   Admin screens live in lab-admin.js and plug in through window.LabApp.
+
+   Lab mode only starts when GET /api/auth/me answers (200 or 401). Opened from file:// or without
+   an API, nothing here touches the page and the practice simulator works exactly as before.
+   Pure logic is in lab-core.js (window.LabCore); the simulator bridge is window.Lab (app.js).
+   ===================================================================== */
+(() => {
+'use strict';
+const C = window.LabCore;
+const Sim = window.Lab;
+if (!C || !Sim) return;
+
+/* ================= DOM helpers ================= */
+let uid = 0;
+const nextId = p => (p || 'lb') + (++uid);
+
+/** Tiny element builder. Strings become text nodes (never HTML), so user data cannot inject markup. */
+function h(tag, props, ...kids) {
+  const el = document.createElement(tag);
+  if (props) {
+    for (const [k, v] of Object.entries(props)) {
+      if (v === undefined || v === null || v === false) continue;
+      if (k === 'class') el.className = v;
+      else if (k === 'text') el.textContent = v;
+      else if (k.length > 2 && k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2).toLowerCase(), v);
+      else if (k === 'value' || k === 'checked' || k === 'selected' || k === 'disabled' || k === 'readOnly') el[k] = v;
+      else el.setAttribute(k, v === true ? '' : String(v));
+    }
+  }
+  const add = kid => {
+    if (kid === undefined || kid === null || kid === false) return;
+    if (Array.isArray(kid)) kid.forEach(add);
+    else el.appendChild(typeof kid === 'object' ? kid : document.createTextNode(String(kid)));
+  };
+  kids.forEach(add);
+  return el;
+}
+
+const fmtDate = iso => {
+  if (!iso) return '-';
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '-';
+  try { return d.toLocaleString('es', { dateStyle: 'short', timeStyle: 'short' }); } catch (e) { return d.toISOString().slice(0, 16).replace('T', ' '); }
+};
+
+const badge = (text, kind) => h('span', { class: 'badge' + (kind ? ' ' + kind : ''), text });
+const notice = (kind, text, extra) => h('div', { class: 'notice ' + kind, role: kind === 'error' ? 'alert' : 'status' }, text, extra);
+
+function loadingBox(text) {
+  return h('div', { class: 'state', role: 'status' }, h('span', { class: 'spinner', 'aria-hidden': 'true' }), text || 'Cargando…');
+}
+function failureBox(err, retry) {
+  return h('div', { class: 'state', role: 'alert' },
+    h('p', { text: C.errorMessage(err) }),
+    retry ? h('button', { class: 'lb-btn', type: 'button', onclick: retry, text: 'Reintentar' }) : null);
+}
+
+/** Disables a button and shows a spinner while `on`; prevents double submits. */
+function busy(btn, on) {
+  if (!btn) return;
+  btn.disabled = !!on;
+  if (on) {
+    btn.setAttribute('aria-busy', 'true');
+    if (!btn.querySelector('.spinner')) btn.prepend(h('span', { class: 'spinner', 'aria-hidden': 'true' }));
+  } else {
+    btn.removeAttribute('aria-busy');
+    const s = btn.querySelector('.spinner'); if (s) s.remove();
+  }
+}
+async function withBusy(btn, fn) {
+  if (btn && btn.disabled) return undefined;
+  busy(btn, true);
+  try { return await fn(); } finally { busy(btn, false); }
+}
+
+/**
+ * Labeled form control. kind: input | textarea | select | check.
+ * Returns { wrap, input, setError(msg), clear() }.
+ */
+function field(label, kind, opts) {
+  opts = opts || {};
+  const id = nextId('f');
+  const errId = id + '-err', hintId = id + '-hint';
+  let input;
+  if (kind === 'textarea') input = h('textarea', { id, rows: opts.rows || 4, maxlength: opts.maxlength });
+  else if (kind === 'select') input = h('select', { id }, (opts.options || []).map(o => h('option', { value: o.value, text: o.label })));
+  else input = h('input', { id, type: kind === 'check' ? 'checkbox' : (opts.type || 'text'), maxlength: opts.maxlength, inputmode: opts.inputmode, min: opts.min, max: opts.max, step: opts.step, placeholder: opts.placeholder });
+  if (opts.autocomplete) input.setAttribute('autocomplete', opts.autocomplete);
+  if (opts.required) input.setAttribute('aria-required', 'true');
+  if (opts.value !== undefined && opts.value !== null) { if (kind === 'check') input.checked = !!opts.value; else input.value = opts.value; }
+  if (opts.disabled) input.disabled = true;
+  const err = h('div', { class: 'err', id: errId, hidden: true });
+  const hint = opts.hint ? h('div', { class: 'hint', id: hintId, text: opts.hint }) : null;
+  input.setAttribute('aria-describedby', (hint ? hintId + ' ' : '') + errId);
+  const wrap = kind === 'check'
+    ? h('div', { class: 'lb-check' }, input, h('label', { for: id, text: label }), err)
+    : h('div', { class: 'lb-field' }, h('label', { for: id, text: label }), input, hint, err);
+  return {
+    wrap, input,
+    setError(msg) {
+      err.textContent = msg || ''; err.hidden = !msg;
+      if (msg) input.setAttribute('aria-invalid', 'true'); else input.removeAttribute('aria-invalid');
+    },
+    clear() { this.setError(''); },
+  };
+}
+
+/** Applies a { name: message } map to fields; returns the first field with an error (to focus it). */
+function applyErrors(fields, errors) {
+  let first = null;
+  for (const [name, f] of Object.entries(fields)) {
+    const msg = errors[name] || '';
+    f.setError(msg);
+    if (msg && !first) first = f;
+  }
+  return first;
+}
+
+/* ================= Modal dialogs (focus trap, Esc, restore focus) ================= */
+function modal(opts) {
+  return new Promise(resolve => {
+    const previous = document.activeElement;
+    const titleId = nextId('m');
+    const actions = (opts.actions || [{ label: 'Aceptar', value: true, kind: 'primary' }]);
+    const box = h('div', { class: 'box', role: 'dialog', 'aria-modal': 'true', 'aria-labelledby': titleId },
+      h('h2', { id: titleId, text: opts.title }),
+      opts.body || null,
+      h('div', { class: 'actions' }, actions.map(a => h('button', {
+        type: 'button', class: 'lb-btn' + (a.kind ? ' ' + a.kind : ''), 'data-autofocus': a.autofocus ? '' : null,
+        onclick: () => close(a.value), text: a.label,
+      }))));
+    const overlay = h('div', { class: 'lab-modal lab-ui' }, box);
+    const focusables = () => [...box.querySelectorAll('button,[href],input,select,textarea,[tabindex]:not([tabindex="-1"])')].filter(e => !e.disabled);
+    function onKey(e) {
+      if (e.key === 'Escape' && opts.dismissible !== false) { e.preventDefault(); e.stopPropagation(); close(null); return; }
+      if (e.key !== 'Tab') return;
+      const f = focusables(); if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && (document.activeElement === first || !box.contains(document.activeElement))) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && (document.activeElement === last || !box.contains(document.activeElement))) { e.preventDefault(); first.focus(); }
+    }
+    function close(value) {
+      document.removeEventListener('keydown', onKey, true);
+      overlay.remove();
+      if (previous && previous.focus && document.contains(previous)) previous.focus();
+      resolve(value);
+    }
+    overlay.addEventListener('mousedown', e => { if (e.target === overlay && opts.dismissible !== false) close(null); });
+    document.addEventListener('keydown', onKey, true);
+    document.body.appendChild(overlay);
+    const start = box.querySelector('[data-autofocus]') || focusables()[0];
+    if (start) start.focus();
+  });
+}
+
+/** Resolves true when the user confirms. */
+async function confirmDialog(o) {
+  const r = await modal({
+    title: o.title,
+    body: h('div', null, (Array.isArray(o.message) ? o.message : [o.message]).map(t => h('p', { text: t }))),
+    actions: [
+      { label: o.cancelLabel || 'Cancelar', value: false },
+      { label: o.confirmLabel || 'Aceptar', value: true, kind: o.danger ? 'danger solid' : 'primary', autofocus: !o.danger },
+    ],
+  });
+  return r === true;
+}
+const infoDialog = (title, message) => modal({ title, body: h('p', { text: message }), actions: [{ label: 'Entendido', value: true, kind: 'primary', autofocus: true }] });
+
+/* ================= API client ================= */
+class ApiError extends Error {
+  constructor(status, code, message, fields) {
+    super(message || code);
+    this.status = status; this.code = code; this.fields = fields || [];
+  }
+}
+const state = { user: null, flash: '', pendingNext: null };
+
+async function request(method, path, body, opts) {
+  opts = opts || {};
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = ctl && !opts.keepalive ? setTimeout(() => ctl.abort(), 25000) : null;
+  const t0 = Date.now();
+  let res, text = '';
+  try {
+    res = await fetch('/api' + path, {
+      method, credentials: 'same-origin', keepalive: !!opts.keepalive,
+      headers: body !== undefined ? { 'content-type': 'application/json' } : {},
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      signal: ctl ? ctl.signal : undefined,
+    });
+    text = await res.text();
+  } catch (e) {
+    throw new ApiError(0, 'NETWORK', '', []);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+  const t1 = Date.now();
+  let data = null;
+  if (text) { try { data = JSON.parse(text); } catch (e) { data = null; } }
+  if (!res.ok) {
+    const er = (data && data.error) || {};
+    const err = new ApiError(res.status, er.code || (res.status >= 500 ? 'INTERNAL' : 'HTTP_' + res.status), er.message || '', er.fields);
+    if (res.status === 401 && !opts.noAuthRedirect && er.code === 'UNAUTHENTICATED') sessionExpired();
+    throw err;
+  }
+  return opts.timing ? { data, t0, t1 } : data;
+}
+const api = {
+  get: (p, o) => request('GET', p, undefined, o),
+  post: (p, b, o) => request('POST', p, b === undefined ? {} : b, o),
+  put: (p, b, o) => request('PUT', p, b, o),
+  del: (p, o) => request('DELETE', p, undefined, o),
+};
+
+/* ================= Shell (top bar, strip, view) ================= */
+const appEl = document.getElementById('app');
+let bar, strip, view, live;
+const screens = {};
+let current = null;      // { leave?, destroy? } of the screen on display
+let navToken = 0;
+let lastHash = '';
+
+function buildShell() {
+  document.body.classList.add('lab');
+  bar = h('header', { id: 'labBar', class: 'lab-ui', role: 'banner' });
+  strip = h('section', { id: 'labStrip', class: 'lab-ui', 'aria-label': 'Contexto del ejercicio', hidden: true });
+  view = h('main', { id: 'labView', class: 'lab-ui', tabindex: '-1', hidden: true });
+  live = h('div', { class: 'sr-only', 'aria-live': 'polite', id: 'labLive' });
+  document.body.insertBefore(bar, appEl);
+  document.body.insertBefore(strip, appEl);
+  document.body.insertBefore(view, appEl);
+  document.body.appendChild(live);
+  if (typeof ResizeObserver !== 'undefined') new ResizeObserver(measure).observe(bar), new ResizeObserver(measure).observe(strip);
+}
+function measure() {
+  const px = (bar ? bar.offsetHeight : 0) + (strip && !strip.hidden ? strip.offsetHeight : 0);
+  document.documentElement.style.setProperty('--labtop', px + 'px');
+}
+const announce = text => { if (live) { live.textContent = ''; setTimeout(() => { live.textContent = text; }, 30); } };
+
+function showView() {
+  appEl.hidden = true; strip.hidden = true; view.hidden = false;
+  measure();
+}
+/** Shows the simulator, optionally with a context strip above it. */
+function showSim(stripNode) {
+  view.hidden = true; appEl.hidden = false;
+  strip.replaceChildren();
+  if (stripNode) { strip.appendChild(stripNode); strip.hidden = false; } else strip.hidden = true;
+  measure(); Sim.refresh();
+}
+
+const navGroup = name => {
+  if (name === 'practice') return 'practice';
+  if (['exams', 'exam', 'attempt'].includes(name)) return 'exams';
+  if (name === 'results') return 'results';
+  if (['adminExercises', 'adminExerciseNew', 'adminExerciseNewSheet', 'adminExercise', 'adminExerciseSheet'].includes(name)) return 'adminExercises';
+  if (['adminExams', 'adminExamNew', 'adminExam'].includes(name)) return 'adminExams';
+  if (['adminResults', 'adminAttempt'].includes(name)) return 'adminResults';
+  return '';
+};
+
+function renderBar(routeName) {
+  const group = navGroup(routeName === undefined ? C.matchRoute(location.hash).name : routeName);
+  const link = (key, href, text) => h('a', { href, 'aria-current': group === key ? 'page' : null, text });
+  const u = state.user;
+  bar.replaceChildren(
+    h('a', { class: 'brand', href: '#/practica', text: 'GridLab' }),
+    h('nav', { 'aria-label': 'Principal' },
+      link('practice', '#/practica', 'Práctica libre'),
+      link('exams', '#/examenes', 'Exámenes'),
+      link('results', '#/resultados', 'Mis resultados'),
+      u && u.role === 'admin' ? [
+        h('span', { class: 'grp', text: 'Admin' }),
+        link('adminExercises', '#/admin/ejercicios', 'Ejercicios'),
+        link('adminExams', '#/admin/examenes', 'Exámenes'),
+        link('adminResults', '#/admin/resultados', 'Resultados'),
+      ] : null),
+    h('div', { class: 'who' },
+      u ? [
+        h('span', { class: 'name', title: u.email, text: u.name }),
+        u.role === 'admin' ? badge('Admin', 'info') : null,
+        h('button', { class: 'lb-btn sm', type: 'button', onclick: logout, text: 'Cerrar sesión' }),
+      ] : [h('a', { class: 'lb-btn sm primary', href: '#/login', text: 'Ingresar' })]));
+  measure();
+}
+
+async function logout() {
+  try { await api.post('/auth/logout', undefined, { noAuthRedirect: true }); } catch (e) { /* the cookie may already be gone */ }
+  state.user = null;
+  Sim.resetToPractice();
+  renderBar();
+  navigate('#/practica');
+}
+
+function sessionExpired() {
+  if (!state.user) return;
+  state.user = null;
+  state.flash = 'Tu sesión terminó. Inicia sesión para continuar.';
+  renderBar();
+  const here = C.matchRoute(location.hash);
+  if (here.access !== 'public') navigate(C.loginHash(safeHere()));
+}
+const safeHere = () => C.safeNext(location.hash) || null;
+const defaultHome = () => (state.user && state.user.role === 'admin' ? '#/admin/ejercicios' : '#/examenes');
+
+function navigate(hash, replace) {
+  if (replace) {
+    history.replaceState(null, '', location.pathname + location.search + hash);
+    route();
+  } else if (location.hash === hash) route();
+  else location.hash = hash;
+}
+
+/* ================= Router ================= */
+async function route() {
+  const r = C.matchRoute(location.hash);
+  const token = ++navToken;
+  if (current && current.leave) {
+    let ok = true;
+    try { ok = (await current.leave(r)) !== false; } catch (e) { ok = true; }
+    if (token !== navToken) return;
+    if (!ok) { history.replaceState(null, '', location.pathname + location.search + lastHash); navToken--; return; }
+  }
+  if (current && current.destroy) { try { current.destroy(); } catch (e) { /* ignore */ } }
+  current = null;
+  lastHash = location.hash;
+
+  if (r.name === 'root') return navigate('#/practica', true);
+  if (r.access !== 'public' && !state.user) {
+    return navigate(C.loginHash(C.safeNext(location.hash)), true);
+  }
+  if ((r.name === 'login' || r.name === 'register') && state.user) {
+    return navigate(C.safeNext(r.query.next) || defaultHome(), true);
+  }
+  renderBar(r.name);
+
+  const root = h('div');
+  const ctx = { route: r, params: r.params, query: r.query, root, stale: () => token !== navToken, showView, showSim };
+  if (r.name === 'practice') {
+    Sim.resetToPractice();
+    showSim(null);
+    current = {};
+    return;
+  }
+  if (r.access === 'admin' && state.user.role !== 'admin') {
+    showView(); view.replaceChildren(h('div', { class: 'lab-page mid' }, notice('error', C.CODE_MESSAGES.FORBIDDEN))); view.scrollTop = 0;
+    current = {};
+    return;
+  }
+  const screen = screens[r.name];
+  showView();
+  view.replaceChildren(root);
+  view.scrollTop = 0;
+  if (!screen) {
+    root.append(h('div', { class: 'lab-page mid' }, h('div', { class: 'state' }, h('p', { text: 'No encontramos esa página.' }), h('a', { class: 'lb-btn', href: defaultHome(), text: 'Ir al inicio' }))));
+    current = {};
+    return;
+  }
+  root.append(loadingBox());
+  try {
+    const result = await screen(ctx);
+    if (token === navToken) {
+      current = result || {};
+      if (!view.hidden && !view.contains(document.activeElement)) view.focus({ preventScroll: true });
+    } else if (result && result.destroy) result.destroy();
+  } catch (err) {
+    if (token === navToken) { root.replaceChildren(failureBox(err, () => route())); current = {}; }
+  }
+}
+
+window.addEventListener('hashchange', route);
+
+/* ================= Auth screens ================= */
+function authCard(title, children) {
+  return h('div', { class: 'lab-page narrow' }, h('div', { class: 'card' }, h('h1', { text: title }), children));
+}
+
+screens.login = async ctx => {
+  const next = C.safeNext(ctx.query.next);
+  const email = field('Correo electrónico', 'input', { type: 'email', autocomplete: 'username', required: true });
+  const password = field('Contraseña', 'input', { type: 'password', autocomplete: 'current-password', required: true });
+  const msg = h('div', { 'aria-live': 'polite' });
+  const submit = h('button', { class: 'lb-btn primary', type: 'submit', text: 'Ingresar' });
+  const form = h('form', { novalidate: true, 'aria-label': 'Ingresar' }, email.wrap, password.wrap, msg, h('div', null, submit));
+  if (state.flash) { msg.append(notice('warn', state.flash)); state.flash = ''; }
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const values = { email: email.input.value, password: password.input.value };
+    const errors = C.validateLogin(values);
+    const first = applyErrors({ email, password }, errors);
+    msg.replaceChildren();
+    if (first) { first.input.focus(); return; }
+    await withBusy(submit, async () => {
+      try {
+        state.user = await api.post('/auth/login', { email: values.email.trim(), password: values.password }, { noAuthRedirect: true });
+        renderBar();
+        navigate(next || defaultHome(), true);
+      } catch (err) {
+        msg.replaceChildren(notice('error', C.errorMessage(err)));
+      }
+    });
+  });
+  ctx.root.replaceChildren(authCard('Ingresar', [
+    h('p', { class: 'muted', text: 'Ingresa para presentar exámenes y ver tus resultados.' }),
+    form,
+    h('p', { class: 'small' }, '¿No tienes cuenta? ', h('a', { href: C.registerHash(next), text: 'Crear cuenta' })),
+    h('p', { class: 'small' }, h('a', { href: '#/practica', text: 'Seguir con la práctica libre' })),
+  ]));
+  email.input.focus();
+};
+
+screens.register = async ctx => {
+  const next = C.safeNext(ctx.query.next);
+  const f = {
+    name: field('Nombre completo', 'input', { autocomplete: 'name', required: true, maxlength: 120 }),
+    email: field('Correo electrónico', 'input', { type: 'email', autocomplete: 'email', required: true }),
+    password: field('Contraseña', 'input', { type: 'password', autocomplete: 'new-password', required: true, hint: 'Mínimo 8 caracteres.' }),
+    confirm: field('Repite la contraseña', 'input', { type: 'password', autocomplete: 'new-password', required: true }),
+  };
+  const msg = h('div', { 'aria-live': 'polite' });
+  const submit = h('button', { class: 'lb-btn primary', type: 'submit', text: 'Crear cuenta' });
+  const form = h('form', { novalidate: true, 'aria-label': 'Crear cuenta' }, f.name.wrap, f.email.wrap, f.password.wrap, f.confirm.wrap, msg, h('div', null, submit));
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    const values = { name: f.name.input.value, email: f.email.input.value, password: f.password.input.value, confirm: f.confirm.input.value };
+    const first = applyErrors(f, C.validateRegister(values));
+    msg.replaceChildren();
+    if (first) { first.input.focus(); return; }
+    await withBusy(submit, async () => {
+      try {
+        state.user = await api.post('/auth/register', { name: values.name.trim(), email: values.email.trim(), password: values.password }, { noAuthRedirect: true });
+        renderBar();
+        navigate(next || defaultHome(), true);
+      } catch (err) {
+        if (err.code === 'EMAIL_TAKEN') { f.email.setError(C.CODE_MESSAGES.EMAIL_TAKEN); f.email.input.focus(); }
+        else if (err.code === 'VALIDATION' && err.fields.length) {
+          const map = {};
+          err.fields.forEach(n => { map[n] = 'Valor no válido.'; });
+          applyErrors(f, map);
+          msg.replaceChildren(notice('error', C.errorMessage(err)));
+        } else msg.replaceChildren(notice('error', C.errorMessage(err)));
+      }
+    });
+  });
+  ctx.root.replaceChildren(authCard('Crear cuenta', [
+    h('p', { class: 'muted', text: 'Crea tu cuenta de estudiante para presentar exámenes.' }),
+    form,
+    h('p', { class: 'small' }, '¿Ya tienes cuenta? ', h('a', { href: C.loginHash(next), text: 'Ingresar' })),
+  ]));
+  f.name.input.focus();
+};
+
+/* ================= Student: exams list ================= */
+function resultLine(exam) {
+  const r = exam.result;
+  if (!r) return null;
+  const which = exam.gradePolicy === 'last' ? 'Último intento' : 'Mejor intento';
+  return h('div', null,
+    h('div', { class: 'small muted', text: which + ' (n.º ' + r.attemptNumber + ')' }),
+    h('div', null, h('strong', { text: C.formatGrade(r.grade, exam.scale) }), ' · ' + C.formatPercent(r.scorePercent) + ' ', badge(r.passed ? 'Aprobado' : 'Reprobado', r.passed ? 'ok' : 'bad')));
+}
+
+function examCard(exam) {
+  const st = C.examCardState(exam);
+  const kind = st.key === 'available' ? 'ok' : st.key === 'running' ? 'info' : 'warn';
+  const action = st.canStart
+    ? h('a', { class: 'lb-btn primary', href: st.resume ? '#/intento/' + exam.inProgressAttemptId : '#/examenes/' + exam.id, text: st.cta })
+    : h('button', { class: 'lb-btn', type: 'button', disabled: true, text: st.cta });
+  return h('article', { class: 'card', 'aria-label': exam.title },
+    h('div', { class: 'row', style: 'display:flex;gap:8px;align-items:flex-start' },
+      h('h2', { style: 'flex:1', text: exam.title }), badge(st.label, kind)),
+    h('div', { class: 'chips' },
+      h('span', { class: 'chip', text: exam.durationMinutes + ' min' }),
+      h('span', { class: 'chip', text: exam.exerciseCount + (exam.exerciseCount === 1 ? ' ejercicio' : ' ejercicios') }),
+      h('span', { class: 'chip', text: 'Intentos: ' + exam.attemptsUsed + ' de ' + exam.maxAttempts }),
+      h('span', { class: 'chip', text: 'Quedan: ' + exam.attemptsRemaining })),
+    exam.availableUntil ? h('div', { class: 'small muted', text: 'Disponible hasta ' + fmtDate(exam.availableUntil) }) : null,
+    exam.availableFrom && st.key === 'not_open' ? h('div', { class: 'small muted', text: 'Abre el ' + fmtDate(exam.availableFrom) }) : null,
+    h('div', { class: 'grow' }, resultLine(exam) || h('div', { class: 'small muted', text: 'Aún no tienes resultados.' })),
+    h('div', null, action));
+}
+
+screens.exams = async ctx => {
+  const root = ctx.root;
+  const load = async () => {
+    root.replaceChildren(loadingBox('Cargando exámenes…'));
+    try {
+      const exams = await api.get('/exams');
+      if (ctx.stale()) return;
+      root.replaceChildren(h('div', { class: 'lab-page' },
+        h('div', { class: 'lab-head' }, h('h1', { text: 'Exámenes' }), h('a', { class: 'lb-btn', href: '#/resultados', text: 'Mis resultados' })),
+        exams.length ? h('div', { class: 'cards' }, exams.map(examCard))
+          : h('div', { class: 'card state' }, h('p', { text: 'Todavía no hay exámenes publicados.' }))));
+    } catch (err) { if (!ctx.stale()) root.replaceChildren(h('div', { class: 'lab-page' }, failureBox(err, load))); }
+  };
+  await load();
+};
+
+/* ================= Student: instructions ================= */
+screens.exam = async ctx => {
+  const root = ctx.root;
+  const id = ctx.params.id;
+  const load = async () => {
+    root.replaceChildren(loadingBox('Cargando examen…'));
+    let exam;
+    try { exam = await api.get('/exams/' + id); } catch (err) {
+      if (ctx.stale()) return;
+      root.replaceChildren(h('div', { class: 'lab-page mid' }, failureBox(err, err.status === 404 ? null : load), h('p', { class: 'state' }, h('a', { class: 'lb-btn', href: '#/examenes', text: 'Volver a los exámenes' }))));
+      return;
+    }
+    if (ctx.stale()) return;
+    renderExam(exam);
+  };
+
+  function renderExam(exam) {
+    const st = C.examCardState(exam);
+    const policy = exam.gradePolicy === 'last' ? 'tu último intento' : 'tu mejor intento';
+    const rules = [
+      'Tienes ' + exam.durationMinutes + ' minutos desde que comienzas. El cronómetro corre en el servidor: si sales de la página o cierras el navegador, el tiempo sigue contando.',
+      'Intentos permitidos: ' + exam.maxAttempts + ' (te quedan ' + exam.attemptsRemaining + '). La nota del examen es ' + policy + '.',
+      'Recibirás ' + exam.exerciseCount + (exam.exerciseCount === 1 ? ' ejercicio' : ' ejercicios') + ' elegidos al azar; cada intento puede traer ejercicios distintos.',
+      'Cada ejercicio se envía una sola vez: al enviarlo se califica al instante y ya no puedes modificarlo.',
+      'Tu avance se guarda solo como borrador. Al terminar el tiempo, o al finalizar el examen, se califica automáticamente lo que no hayas enviado.',
+      'Se aprueba con ' + C.formatNumber(exam.passPercent) + ' % o más. La nota se expresa sobre ' + C.formatNumber(exam.scale) + '.',
+    ];
+    const msg = h('div', { 'aria-live': 'polite' });
+    let action;
+    if (st.resume) {
+      action = h('a', { class: 'lb-btn primary', href: '#/intento/' + exam.inProgressAttemptId, text: 'Continuar intento' });
+    } else {
+      const accept = field('He leído y acepto las instrucciones', 'check', { required: true });
+      const start = h('button', { class: 'lb-btn primary', type: 'button', disabled: true, text: 'Comenzar intento' });
+      const sync = () => { start.disabled = !(accept.input.checked && st.canStart) || start.hasAttribute('aria-busy'); };
+      accept.input.addEventListener('change', sync);
+      if (!st.canStart) accept.input.disabled = true;
+      start.addEventListener('click', () => withBusy(start, async () => {
+        msg.replaceChildren();
+        if (!accept.input.checked) return;
+        try {
+          const created = await api.post('/exams/' + id + '/attempts', { accepted: true });
+          navigate('#/intento/' + created.id);
+        } catch (err) { msg.replaceChildren(notice('error', C.errorMessage(err))); }
+      }));
+      action = h('div', null, accept.wrap, h('div', null, start));
+    }
+    const blocked = !st.canStart ? notice('warn', st.key === 'closed' ? C.CODE_MESSAGES.EXAM_CLOSED : st.key === 'not_open' ? C.CODE_MESSAGES.EXAM_NOT_OPEN : C.CODE_MESSAGES.NO_ATTEMPTS_LEFT) : null;
+    root.replaceChildren(h('div', { class: 'lab-page mid' },
+      h('div', { class: 'lab-head' }, h('h1', { text: exam.title }), h('a', { class: 'lb-btn', href: '#/examenes', text: 'Volver a los exámenes' })),
+      st.resume ? notice('ok', 'Tienes un intento en curso. El tiempo sigue corriendo.') : null,
+      blocked,
+      h('div', { class: 'card' },
+        h('h2', { text: 'Instrucciones' }),
+        exam.instructions ? h('p', { class: 'pre', text: exam.instructions }) : h('p', { class: 'muted', text: 'Este examen no tiene instrucciones adicionales.' }),
+        h('h3', { text: 'Reglas' }),
+        h('ul', { class: 'rules' }, rules.map(t => h('li', { text: t })))),
+      exam.result ? h('div', { class: 'card' }, h('h2', { text: 'Tu resultado actual' }), resultLine(exam)) : null,
+      h('div', { class: 'card' }, action, msg)));
+  }
+  await load();
+};
+
+/* ================= Student: results ================= */
+function attemptRows(attempts, scale) {
+  return attempts.map(a => h('tr', null,
+    h('td', { text: 'Intento ' + a.number }),
+    h('td', null, badge(C.statusLabel(a.status), a.status === 'in_progress' ? 'info' : '')),
+    h('td', { class: 'num', text: a.status === 'in_progress' ? '-' : C.formatGrade(a.grade, scale) }),
+    h('td', { class: 'num', text: a.status === 'in_progress' ? '-' : C.formatPercent(a.scorePercent) }),
+    h('td', { class: 'nowrap', text: fmtDate(a.submittedAt || a.startedAt) }),
+    h('td', null, h('a', { class: 'lb-btn sm', href: '#/intento/' + a.id, text: a.status === 'in_progress' ? 'Continuar' : 'Ver detalle' }))));
+}
+
+screens.results = async ctx => {
+  const root = ctx.root;
+  const load = async () => {
+    root.replaceChildren(loadingBox('Cargando resultados…'));
+    try {
+      const rows = await api.get('/me/results');
+      if (ctx.stale()) return;
+      root.replaceChildren(h('div', { class: 'lab-page' },
+        h('div', { class: 'lab-head' }, h('h1', { text: 'Mis resultados' }), h('a', { class: 'lb-btn', href: '#/examenes', text: 'Ver exámenes' })),
+        rows.length ? rows.map(r => h('section', { class: 'card', 'aria-label': r.title },
+          h('div', { style: 'display:flex;gap:8px;align-items:center;flex-wrap:wrap' },
+            h('h2', { style: 'flex:1', text: r.title }),
+            h('span', { class: 'chip', text: 'Intentos: ' + r.attemptsUsed + ' de ' + r.maxAttempts }),
+            r.result ? badge(r.result.passed ? 'Aprobado' : 'Reprobado', r.result.passed ? 'ok' : 'bad') : badge('Sin calificar')),
+          r.result ? h('p', null, 'Resultado que cuenta (', r.gradePolicy === 'last' ? 'último intento' : 'mejor intento', ', n.º ' + r.result.attemptNumber + '): ',
+            h('strong', { text: C.formatGrade(r.result.grade, r.scale) }), ' · ' + C.formatPercent(r.result.scorePercent)) : h('p', { class: 'muted', text: 'Todavía no tienes intentos terminados.' }),
+          h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
+            h('thead', null, h('tr', null, ['Intento', 'Estado', 'Nota', 'Porcentaje', 'Fecha', ''].map((t, i) => h('th', { class: i === 2 || i === 3 ? 'num' : null, text: t })))),
+            h('tbody', null, attemptRows(r.attempts, r.scale)))))
+        ) : h('div', { class: 'card state' }, h('p', { text: 'Aún no has presentado ningún examen.' }), h('a', { class: 'lb-btn primary', href: '#/examenes', text: 'Ir a los exámenes' }))));
+    } catch (err) { if (!ctx.stale()) root.replaceChildren(h('div', { class: 'lab-page' }, failureBox(err, load))); }
+  };
+  await load();
+};
+
+/* ================= Exam runner ================= */
+function checkList(results) {
+  return h('ul', { class: 'checks' }, results.map(r => h('li', { class: r.passed ? 'pass' : 'fail' },
+    h('span', { class: 'mark', 'aria-hidden': 'true', text: r.passed ? '✓' : '✗' }),
+    h('span', null, r.label, h('span', { class: 'sr-only', text: r.passed ? ' (correcto)' : ' (incorrecto)' })),
+    h('span', { class: 'pts', text: C.formatNumber(r.earned) + ' / ' + C.formatNumber(r.points) }))));
+}
+
+function attemptResult(ctx, v) {
+  const root = ctx.root;
+  const body = h('div', { class: 'lab-page mid' },
+    h('div', { class: 'lab-head' },
+      h('h1', { text: v.examTitle }),
+      h('span', { class: 'chip', text: 'Intento ' + v.number }),
+      v.status === 'expired' ? badge('Tiempo agotado', 'warn') : badge('Enviado', 'info')),
+    v.status === 'expired' ? notice('warn', 'El tiempo se agotó: se calificó lo último que habías guardado.') : null,
+    h('section', { class: 'card', 'aria-label': 'Resultado' },
+      h('div', { class: 'score' },
+        h('div', null, h('div', { class: 'small muted', text: 'Porcentaje' }), h('div', { class: 'big', text: C.formatPercent(v.scorePercent) })),
+        h('div', null, h('div', { class: 'small muted', text: 'Nota' }), h('div', { class: 'big', text: C.formatGrade(v.grade, v.scale) })),
+        h('div', null, v.passed === null ? null : badge(v.passed ? 'Aprobado' : 'Reprobado', v.passed ? 'ok' : 'bad'),
+          h('div', { class: 'small muted', text: 'Se aprueba con ' + C.formatNumber(v.passPercent) + ' %' })))),
+    h('section', { class: 'card', 'aria-label': 'Detalle por ejercicio' },
+      h('h2', { text: 'Por ejercicio' }),
+      h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
+        h('thead', null, h('tr', null, ['Ejercicio', 'Puntaje'].map((t, i) => h('th', { class: i ? 'num' : null, text: t })))),
+        h('tbody', null, v.exercises.map(e => h('tr', null, h('td', { text: e.position + '. ' + e.title }), h('td', { class: 'num', text: C.formatNumber(e.score || 0) + ' / ' + C.formatNumber(e.maxScore) })))))),
+      h('div', { style: 'margin-top:10px' }, v.exercises.filter(e => e.results && e.results.length).map(e => h('details', { class: 'fold' },
+        h('summary', { text: e.position + '. ' + e.title + ' — ' + C.formatNumber(e.score || 0) + ' / ' + C.formatNumber(e.maxScore) }), checkList(e.results))))));
+  const actions = h('div', { class: 'card', style: 'display:flex;gap:8px;flex-wrap:wrap' },
+    h('a', { class: 'lb-btn primary', href: '#/examenes', text: 'Volver a mis exámenes' }),
+    h('a', { class: 'lb-btn', href: '#/resultados', text: 'Mis resultados' }));
+  body.append(actions);
+  root.replaceChildren(body);
+  api.get('/exams/' + v.examId).then(exam => {
+    if (ctx.stale()) return;
+    const st = C.examCardState(exam);
+    if (st.canStart && !st.resume) actions.append(h('a', { class: 'lb-btn', href: '#/examenes/' + exam.id, text: 'Otro intento (' + exam.attemptsRemaining + ' disponible' + (exam.attemptsRemaining === 1 ? '' : 's') + ')' }));
+    else if (st.resume) actions.append(h('a', { class: 'lb-btn', href: '#/intento/' + exam.inProgressAttemptId, text: 'Continuar intento en curso' }));
+  }).catch(() => { /* optional extra button */ });
+  return {};
+}
+
+screens.attempt = async ctx => {
+  const root = ctx.root;
+  let first;
+  try {
+    first = await api.get('/attempts/' + ctx.params.id, { timing: true });
+  } catch (err) {
+    if (ctx.stale()) return {};
+    root.replaceChildren(h('div', { class: 'lab-page mid' }, failureBox(err, err.status === 404 ? null : () => route()), h('p', { class: 'state' }, h('a', { class: 'lb-btn', href: '#/examenes', text: 'Volver a los exámenes' }))));
+    return {};
+  }
+  if (ctx.stale()) return {};
+  if (first.data.status !== 'in_progress') return attemptResult(ctx, first.data);
+  return runAttempt(ctx, first.data, first.t0, first.t1);
+};
+
+function runAttempt(ctx, initial, t0, t1) {
+  const root = ctx.root;
+  let v = initial;
+  const clock = C.createClock();
+  clock.sync(v.serverNow, t0, t1);
+  const R = { cur: 0, busy: false, ending: false, over: false, warned5: false, warned1: false, panelOpen: !window.matchMedia('(max-height: 540px)').matches };
+  const savedKey = {};     // exerciseId -> workbookKey of what the server has
+  let unsub = null, timerId = 0, destroyed = false;
+
+  /* ----- strip ----- */
+  const titleEl = h('span', { class: 'title' });
+  const progressEl = h('span', { class: 'chip' });
+  const timerEl = h('span', { class: 'timer', role: 'timer', 'aria-label': 'Tiempo restante' });
+  const saveEl = h('span', { class: 'savestate', 'aria-live': 'off' });
+  const panelBtn = h('button', { class: 'lb-btn sm', type: 'button', 'aria-controls': 'runPanel', onclick: () => { R.panelOpen = !R.panelOpen; refresh(); }, text: 'Instrucciones' });
+  const submitBtn = h('button', { class: 'lb-btn sm primary', type: 'button', onclick: () => submitCurrent(), text: 'Terminar ejercicio' });
+  const finishBtn = h('button', { class: 'lb-btn sm danger', type: 'button', onclick: () => finishExam(false), text: 'Finalizar examen' });
+  const stepper = h('div', { class: 'stepper', role: 'group', 'aria-label': 'Ejercicios' });
+  const panel = h('div', { class: 'panel', id: 'runPanel', role: 'region', 'aria-label': 'Instrucciones del ejercicio' });
+  const stripNode = h('div', null,
+    h('div', { class: 'row' }, titleEl, h('span', { class: 'chip', text: 'Intento ' + v.number }), progressEl, timerEl, saveEl,
+      h('span', { class: 'spacer' }), panelBtn, submitBtn, finishBtn),
+    h('div', { class: 'row' }, stepper),
+    panel);
+
+  const exercise = () => v.exercises[R.cur];
+  const submittedCount = () => v.exercises.filter(e => e.submitted).length;
+
+  function refresh() {
+    const ex = exercise();
+    titleEl.textContent = v.examTitle; titleEl.title = v.examTitle;
+    progressEl.textContent = (R.cur + 1) + ' de ' + v.exercises.length + ' ejercicios · ' + submittedCount() + ' enviados';
+    const stepFocus = stepper.contains(document.activeElement);
+    stepper.replaceChildren(...v.exercises.map((e, i) => h('button', {
+      class: 'step' + (e.submitted ? ' done' : ''), type: 'button', 'aria-current': i === R.cur ? 'true' : null,
+      'aria-label': 'Ejercicio ' + (i + 1) + (e.submitted ? ', calificado' : ''), title: e.title,
+      onclick: () => goTo(i),
+    }, String(i + 1), e.submitted ? h('span', { 'aria-hidden': 'true', text: '✓' }) : null)));
+    if (stepFocus && stepper.children[R.cur]) stepper.children[R.cur].focus();
+    submitBtn.disabled = R.busy || R.ending || ex.submitted;
+    finishBtn.disabled = R.busy || R.ending;
+    panelBtn.setAttribute('aria-expanded', R.panelOpen ? 'true' : 'false');
+    panelBtn.textContent = R.panelOpen ? 'Ocultar instrucciones' : 'Instrucciones';
+    panel.hidden = !R.panelOpen;
+    panel.replaceChildren(
+      h('h3', null, (R.cur + 1) + '. ' + ex.title + ' ', ex.submitted ? badge('Calificado', 'ok') : badge(C.formatNumber(ex.points) + ' pts')),
+      ex.instructions ? h('p', { class: 'pre', text: ex.instructions }) : h('p', { class: 'muted', text: 'Este ejercicio no tiene instrucciones.' }),
+      ex.submitted ? h('div', null,
+        h('p', null, h('strong', { text: 'Puntaje: ' + C.formatNumber(ex.score || 0) + ' / ' + C.formatNumber(ex.maxScore) }), ' (el ejercicio quedó bloqueado)'),
+        ex.results ? checkList(ex.results) : null) : null);
+    measure();
+  }
+
+  function setSave(text, bad) {
+    saveEl.textContent = text; saveEl.className = 'savestate' + (bad ? ' bad' : '');
+    Sim.setSaveLabel('· ' + text);
+  }
+
+  /* ----- drafts ----- */
+  async function putDraft(ex) {
+    const snap = ex.workbook;
+    const key = C.workbookKey(snap);
+    ex.needsSave = false;
+    try {
+      const out = await api.put('/attempts/' + v.id + '/exercises/' + ex.id + '/draft', { workbook: snap }, { timing: true });
+      clock.sync(out.data.savedAt, out.t0, out.t1);
+      savedKey[ex.id] = key;
+    } catch (err) {
+      if (err.code === 'EXERCISE_ALREADY_SUBMITTED') return;
+      ex.needsSave = true;
+      throw err;
+    }
+  }
+  const saver = C.createAutosaver({
+    delay: 2500, retryMs: 8000,
+    save: async () => {
+      setSave('Guardando…');
+      for (const ex of v.exercises) if (ex.needsSave && !ex.submitted) await putDraft(ex);
+    },
+    onSaved: () => setSave('Borrador guardado ' + new Date().toLocaleTimeString('es', { hour: '2-digit', minute: '2-digit', second: '2-digit' })),
+    onError: err => {
+      if (err.code === 'ATTEMPT_EXPIRED' || err.code === 'ATTEMPT_CLOSED') { setSave('Intento cerrado', true); reloadClosed(); return; }
+      setSave('No se pudo guardar; reintentando…', true);
+    },
+    fatal: err => err.code === 'ATTEMPT_EXPIRED' || err.code === 'ATTEMPT_CLOSED',
+  });
+
+  function captureCurrent() {
+    const ex = exercise();
+    if (ex.submitted || destroyed) return;
+    const snap = Sim.getWorkbook();
+    const key = C.workbookKey(snap);
+    if (key !== savedKey[ex.id] || ex.needsSave) { ex.workbook = snap; ex.needsSave = true; }
+  }
+  function onSimChange() {
+    if (R.busy || R.ending || destroyed) return;
+    const ex = exercise();
+    if (ex.submitted) return;
+    const snap = Sim.getWorkbook();
+    if (C.workbookKey(snap) === savedKey[ex.id] && !ex.needsSave) return;
+    ex.workbook = snap; ex.needsSave = true;
+    setSave('Cambios sin guardar');
+    saver.markDirty();
+  }
+
+  async function reloadClosed() {
+    if (R.ending) return;
+    R.ending = true; stopTimer(); saver.stop();
+    try {
+      const out = await api.get('/attempts/' + v.id);
+      if (!destroyed) { teardown(); attemptResult(ctx, out); showView(); }
+    } catch (err) { R.ending = false; Sim.toast(C.errorMessage(err)); }
+  }
+
+  /* ----- exercise switching ----- */
+  function loadCurrent() {
+    const ex = exercise();
+    Sim.loadWorkbook(ex.workbook, { readOnly: ex.submitted, title: ex.title });
+    if (savedKey[ex.id] === undefined) savedKey[ex.id] = C.workbookKey(Sim.getWorkbook());
+    setSave(ex.submitted ? 'Ejercicio calificado' : 'Borrador en el servidor');
+    refresh();
+  }
+  async function goTo(i) {
+    if (i === R.cur || R.busy || R.ending) return;
+    captureCurrent();
+    const flushing = saver.flush();
+    R.cur = i;
+    loadCurrent();
+    await flushing;
+  }
+
+  /* ----- submit / finish ----- */
+  async function submitCurrent() {
+    const ex = exercise();
+    if (R.busy || R.ending || ex.submitted) return;
+    const ok = await confirmDialog({
+      title: 'Terminar ejercicio',
+      message: ['Se enviará y calificará el ejercicio ' + (R.cur + 1) + '. Después no podrás modificarlo.'],
+      confirmLabel: 'Enviar y calificar',
+    });
+    if (!ok || R.busy || ex.submitted || R.ending) return;
+    R.busy = true; refresh(); busy(submitBtn, true);
+    try {
+      const snap = Sim.getWorkbook();
+      await saver.flush();
+      const out = await api.post('/attempts/' + v.id + '/exercises/' + ex.id + '/submit', { workbook: snap });
+      ex.submitted = true; ex.score = out.score; ex.maxScore = out.maxScore; ex.results = out.results; ex.workbook = snap; ex.needsSave = false;
+      savedKey[ex.id] = C.workbookKey(snap);
+      Sim.setReadOnly(true);
+      R.panelOpen = true;
+      setSave('Ejercicio calificado');
+      Sim.toast('Ejercicio calificado: ' + C.formatNumber(out.score) + ' de ' + C.formatNumber(out.maxScore) + ' puntos.');
+      announce('Ejercicio calificado: ' + C.formatNumber(out.score) + ' de ' + C.formatNumber(out.maxScore) + ' puntos.');
+    } catch (err) {
+      if (err.code === 'ATTEMPT_EXPIRED' || err.code === 'ATTEMPT_CLOSED') { R.busy = false; busy(submitBtn, false); reloadClosed(); return; }
+      if (err.code === 'EXERCISE_ALREADY_SUBMITTED') {
+        try { const fresh = await api.get('/attempts/' + v.id); v = fresh; R.cur = Math.min(R.cur, v.exercises.length - 1); loadCurrent(); } catch (e2) { /* keep state */ }
+      }
+      Sim.toast(C.errorMessage(err));
+      await infoDialog('No se pudo enviar el ejercicio', C.errorMessage(err));
+    } finally {
+      R.busy = false; busy(submitBtn, false); refresh();
+    }
+  }
+
+  async function finishExam(auto) {
+    if (R.ending || (R.busy && !auto)) return;
+    if (!auto) {
+      const pending = v.exercises.length - submittedCount();
+      const ok = await confirmDialog({
+        title: 'Finalizar examen',
+        message: pending
+          ? ['Tienes ' + pending + (pending === 1 ? ' ejercicio' : ' ejercicios') + ' sin enviar. Se calificará lo último que hayas guardado en cada uno.', 'Después no podrás volver a este intento.']
+          : ['Todos los ejercicios están enviados. ¿Finalizar el examen y ver el resultado?'],
+        confirmLabel: 'Finalizar examen', danger: true,
+      });
+      if (!ok || R.ending) return;
+    }
+    R.ending = true; R.busy = true; refresh(); busy(finishBtn, true);
+    stopTimer();
+    try {
+      captureCurrent();
+      await Promise.race([saver.flush(), new Promise(r => setTimeout(r, 6000))]);
+      const out = await api.post('/attempts/' + v.id + '/finish');
+      saver.stop();
+      teardown();
+      attemptResult(ctx, out);
+      showView();
+    } catch (err) {
+      R.ending = false; R.busy = false; busy(finishBtn, false); refresh();
+      if (auto) {
+        setSave('No se pudo cerrar el intento; reintentando…', true);
+        setTimeout(() => { if (!destroyed) { R.over = false; startTimer(); } }, 5000);
+        return;
+      }
+      startTimer();
+      await infoDialog('No se pudo finalizar', C.errorMessage(err));
+    }
+  }
+
+  /* ----- timer ----- */
+  function tick() {
+    const rem = clock.remainingMs(v.deadlineAt);
+    timerEl.textContent = C.formatDuration(rem);
+    const level = C.timerLevel(rem);
+    timerEl.className = 'timer' + (level === 'ok' ? '' : ' ' + level);
+    if (level === 'warn' && !R.warned5) { R.warned5 = true; Sim.toast('Quedan 5 minutos.'); announce('Quedan cinco minutos.'); }
+    if (level === 'danger' && !R.warned1) { R.warned1 = true; Sim.toast('Queda menos de 1 minuto.'); announce('Queda menos de un minuto.'); }
+    if (rem <= 0 && !R.over) { R.over = true; announce('El tiempo terminó.'); finishExam(true); }
+  }
+  function startTimer() { stopTimer(); tick(); timerId = setInterval(tick, 1000); }
+  function stopTimer() { if (timerId) { clearInterval(timerId); timerId = 0; } }
+
+  /* ----- page lifecycle ----- */
+  const onVisibility = () => { if (document.visibilityState === 'hidden') { captureCurrent(); saver.flush(); } };
+  const onPageHide = () => {
+    captureCurrent();
+    for (const ex of v.exercises) if (ex.needsSave && !ex.submitted) {
+      api.put('/attempts/' + v.id + '/exercises/' + ex.id + '/draft', { workbook: ex.workbook }, { keepalive: true, noAuthRedirect: true }).catch(() => {});
+    }
+  };
+  const onBeforeUnload = e => {
+    captureCurrent();
+    if (v.exercises.some(x => x.needsSave && !x.submitted)) { onPageHide(); e.preventDefault(); e.returnValue = ''; }
+  };
+  document.addEventListener('visibilitychange', onVisibility);
+  window.addEventListener('pagehide', onPageHide);
+  window.addEventListener('beforeunload', onBeforeUnload);
+
+  function teardown() {
+    if (destroyed) return;
+    destroyed = true; stopTimer();
+    if (unsub) unsub();
+    document.removeEventListener('visibilitychange', onVisibility);
+    window.removeEventListener('pagehide', onPageHide);
+    window.removeEventListener('beforeunload', onBeforeUnload);
+  }
+
+  /* ----- start ----- */
+  const firstOpen = v.exercises.findIndex(e => !e.submitted);
+  R.cur = firstOpen >= 0 ? firstOpen : 0;
+  root.replaceChildren();
+  showSim(stripNode);
+  loadCurrent();
+  unsub = Sim.onChange(onSimChange);
+  startTimer();
+
+  return {
+    async leave() {
+      if (!destroyed && !R.ending) {
+        captureCurrent();
+        await Promise.race([saver.flush(), new Promise(r => setTimeout(r, 3000))]);
+      }
+      return true;
+    },
+    destroy() { teardown(); saver.stop(); },
+  };
+}
+
+/* ================= Boot ================= */
+async function probe() {
+  if (typeof fetch === 'undefined' || location.protocol === 'file:') return null;
+  const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+  const timer = setTimeout(() => ctl && ctl.abort(), 6000);
+  try {
+    const res = await fetch('/api/auth/me', { credentials: 'same-origin', signal: ctl ? ctl.signal : undefined });
+    if (res.status !== 200 && res.status !== 401) return null;
+    const type = (res.headers && res.headers.get && res.headers.get('content-type')) || '';
+    if (!/json/i.test(type)) return null;
+    const data = await res.json();
+    if (res.status === 200) return data && data.id ? { user: data } : null;
+    return data && data.error && data.error.code ? { user: null } : null;
+  } catch (e) {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function start() {
+  const found = await probe();
+  if (!found) return;          // no API: practice simulator only, nothing else changes
+  state.user = found.user;
+  buildShell();
+
+  const target = C.deepLinkTarget(location.search, location.hash);
+  if (location.search || target) history.replaceState(null, '', location.pathname + (target || location.hash || ''));
+  if (!location.hash) history.replaceState(null, '', location.pathname + '#/practica');
+  renderBar();
+  await route();
+}
+
+const LabApp = { h, api, request, ApiError, modal, confirmDialog, infoDialog, busy, withBusy, field, applyErrors, badge, notice, loadingBox, failureBox, fmtDate, checkList, state, screens, navigate, route, showView, showSim, announce, measure, C, Sim, get user() { return state.user; } };
+window.LabApp = LabApp;
+LabApp.ready = new Promise(resolve => setTimeout(() => { start().then(resolve, e => { console.error(e); resolve(); }); }, 0));
+})();
+</script>
+<script>
+/* =====================================================================
+   GridLab lab UI: staff screens (exercises, exams, results). Plugs into window.LabApp (lab.js).
+   ===================================================================== */
+(() => {
+'use strict';
+const K = window.LabApp;
+if (!K) return;
+const { h, api, C, Sim, field, applyErrors, badge, notice, loadingBox, failureBox, confirmDialog, infoDialog, withBusy, fmtDate, screens, navigate } = K;
+
+const blankWorkbook = () => ({ name: 'Libro1', sheets: [{ name: 'Hoja1', cells: {}, colW: {}, sel: { ar: 0, ac: 0, fr: 0, fc: 0 } }] });
+const countCells = wb => (wb && wb.sheets ? wb.sheets.reduce((n, s) => n + Object.keys(s.cells || {}).length, 0) : 0);
+const statusBadge = s => badge(C.statusLabel(s), s === 'published' ? 'ok' : 'warn');
+const page = (cls, ...kids) => h('div', { class: 'lab-page' + (cls ? ' ' + cls : '') }, ...kids);
+
+function table(headers, rows, numeric) {
+  return h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
+    h('thead', null, h('tr', null, headers.map((t, i) => h('th', { class: numeric && numeric.includes(i) ? 'num' : null, text: t })))),
+    h('tbody', null, rows)));
+}
+
+/** Warns before the page unloads while there are unsaved changes. Returns the remover. */
+function guardUnload(isDirty) {
+  const fn = e => { if (isDirty()) { e.preventDefault(); e.returnValue = ''; } };
+  window.addEventListener('beforeunload', fn);
+  return () => window.removeEventListener('beforeunload', fn);
+}
+const confirmLeave = () => confirmDialog({ title: 'Cambios sin guardar', message: 'Tienes cambios sin guardar. Si sales ahora se perderán.', confirmLabel: 'Salir sin guardar', cancelLabel: 'Seguir editando', danger: true });
+
+/* ================= Exercises: list ================= */
+screens.adminHome = async () => { navigate('#/admin/ejercicios', true); };
+
+screens.adminExercises = async ctx => {
+  const root = ctx.root;
+  const load = async () => {
+    root.replaceChildren(loadingBox('Cargando ejercicios…'));
+    let list;
+    try { list = await api.get('/admin/exercises'); } catch (err) { if (!ctx.stale()) root.replaceChildren(page('', failureBox(err, load))); return; }
+    if (ctx.stale()) return;
+    const remove = async ex => {
+      const ok = await confirmDialog({ title: 'Eliminar ejercicio', message: ['¿Eliminar "' + ex.title + '"? No se puede deshacer.'], confirmLabel: 'Eliminar', danger: true });
+      if (!ok) return;
+      try { await api.del('/admin/exercises/' + ex.id); K.Sim.toast('Ejercicio eliminado.'); await load(); }
+      catch (err) { await infoDialog('No se pudo eliminar', C.errorMessage(err)); }
+    };
+    root.replaceChildren(page('',
+      h('div', { class: 'lab-head' }, h('h1', { text: 'Ejercicios' }), h('a', { class: 'lb-btn primary', href: '#/admin/ejercicios/nuevo', text: 'Nuevo ejercicio' })),
+      list.length ? table(['Título', 'Puntos', 'Estado', 'Verificaciones', 'Uso', 'Actualizado', ''], list.map(ex => h('tr', null,
+        h('td', null, h('a', { href: '#/admin/ejercicios/' + ex.id, text: ex.title })),
+        h('td', { class: 'num', text: C.formatNumber(ex.points) }),
+        h('td', null, statusBadge(ex.status)),
+        h('td', { class: 'num', text: String(ex.checkCount) }),
+        h('td', null, ex.examCount ? badge('En ' + ex.examCount + (ex.examCount === 1 ? ' examen' : ' exámenes'), 'info') : h('span', { class: 'muted', text: 'Sin usar' })),
+        h('td', { class: 'nowrap', text: fmtDate(ex.updatedAt) }),
+        h('td', null, h('div', { class: 'actions' },
+          h('a', { class: 'lb-btn sm', href: '#/admin/ejercicios/' + ex.id, text: 'Editar' }),
+          h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Eliminar ' + ex.title, onclick: () => remove(ex), text: 'Eliminar' }))))), [1, 3])
+        : h('div', { class: 'card state' }, h('p', { text: 'Todavía no hay ejercicios.' }), h('a', { class: 'lb-btn primary', href: '#/admin/ejercicios/nuevo', text: 'Crear el primero' })),
+      list.some(e => e.examCount) ? h('p', { class: 'small muted', text: 'Los ejercicios que ya se usaron en intentos de estudiantes no se pueden eliminar; despublícalos si ya no deben salir.' }) : null));
+  };
+  await load();
+};
+
+/* ================= Exercises: editor (form + sheet share one draft) ================= */
+let exDraft = null;   // { key, id, form, rows, workbook, baseForm, baseWb, keep }
+
+const draftFormKey = d => JSON.stringify({ form: d.form, rows: d.rows });
+const draftDirty = d => !!d && (draftFormKey(d) !== d.baseForm || C.workbookKey(d.workbook) !== d.baseWb);
+
+function draftFromApi(ex) {
+  const d = {
+    key: ex.id, id: ex.id,
+    form: { title: ex.title, instructions: ex.instructions, points: String(ex.points), status: ex.status },
+    rows: (ex.checks || []).map(C.checkToRow),
+    workbook: ex.workbook, keep: false,
+  };
+  d.baseForm = draftFormKey(d); d.baseWb = C.workbookKey(d.workbook);
+  return d;
+}
+function draftNew() {
+  const d = { key: 'new', id: null, form: { title: '', instructions: '', points: '10', status: 'draft' }, rows: [], workbook: blankWorkbook(), keep: false };
+  d.baseForm = draftFormKey(d); d.baseWb = C.workbookKey(d.workbook);
+  return d;
+}
+async function ensureDraft(id) {
+  const key = id || 'new';
+  if (exDraft && exDraft.key === key && exDraft.keep) { exDraft.keep = false; return exDraft; }
+  exDraft = id ? draftFromApi(await api.get('/admin/exercises/' + id)) : draftNew();
+  return exDraft;
+}
+const sheetHash = d => (d.id ? '#/admin/ejercicios/' + d.id + '/hoja' : '#/admin/ejercicios/nuevo/hoja');
+const formHash = d => (d.id ? '#/admin/ejercicios/' + d.id : '#/admin/ejercicios/nuevo');
+const sameExercise = (d, r, sheet) => (d.id
+  ? r.name === (sheet ? 'adminExerciseSheet' : 'adminExercise') && r.params.id === d.id
+  : r.name === (sheet ? 'adminExerciseNewSheet' : 'adminExerciseNew'));
+
+function checkRowEditor(d, i, rowErrors, rerender) {
+  const row = d.rows[i];
+  const errs = rowErrors[i] || {};
+  const bind = (f, key, isCheck) => {
+    f.input.addEventListener(isCheck ? 'change' : 'input', () => { row[key] = isCheck ? f.input.checked : f.input.value; });
+    f.setError(errs[key] || '');
+    return f;
+  };
+  const typeSel = field('Tipo', 'select', { options: C.CHECK_TYPES, value: row.type });
+  typeSel.input.addEventListener('change', () => { row.type = typeSel.input.value; rerender(); });
+  const points = bind(field('Puntos', 'input', { value: row.points, inputmode: 'decimal' }), 'points');
+  const label = bind(field('Etiqueta (la ve el estudiante)', 'input', { value: row.label, maxlength: 200, hint: 'No pongas aquí la respuesta.' }), 'label');
+  const sheetF = bind(field('Hoja (opcional)', 'input', { value: row.sheet, maxlength: 31, hint: 'Vacío = primera hoja.' }), 'sheet');
+  const parts = [];
+  if (row.type === 'cell_value') {
+    parts.push(h('div', { class: 'lb-row' },
+      bind(field('Celda', 'input', { value: row.cell, placeholder: 'B8', maxlength: 8 }), 'cell').wrap,
+      bind(field('Valor esperado', 'input', { value: row.expected, hint: 'Número, VERDADERO/FALSO o texto. Entre comillas ("123") fuerza texto.' }), 'expected').wrap,
+      bind(field('Tolerancia', 'input', { value: row.tolerance, inputmode: 'decimal', hint: 'Opcional (números).' }), 'tolerance').wrap),
+    bind(field('Ignorar mayúsculas y minúsculas', 'check', { value: row.ignoreCase }), 'ignoreCase', true).wrap,
+    bind(field('Exigir que la celda tenga una fórmula', 'check', { value: row.requireFormula }), 'requireFormula', true).wrap);
+  } else if (row.type === 'cell_formula_uses') {
+    parts.push(h('div', { class: 'lb-row' },
+      bind(field('Celda', 'input', { value: row.cell, placeholder: 'B8', maxlength: 8 }), 'cell').wrap,
+      bind(field('Funciones requeridas', 'input', { value: row.functions, placeholder: 'SUMA, SI', hint: 'Nombres en español, separados por comas.' }), 'functions').wrap));
+  } else {
+    parts.push(h('div', { class: 'lb-row' },
+      bind(field('Rango', 'input', { value: row.range, placeholder: 'C2:C5', maxlength: 17 }), 'range').wrap,
+      bind(field('Tolerancia', 'input', { value: row.tolerance, inputmode: 'decimal', hint: 'Opcional (números).' }), 'tolerance').wrap),
+    bind(field('Valores esperados', 'textarea', { value: row.matrix, rows: 4, hint: 'Una fila por línea; celdas separadas por ; o tabulador (puedes pegar desde Excel).' }), 'matrix').wrap,
+    bind(field('Ignorar mayúsculas y minúsculas', 'check', { value: row.ignoreCase }), 'ignoreCase', true).wrap);
+  }
+  return h('div', { class: 'check-row', role: 'group', 'aria-label': 'Verificación ' + (i + 1) },
+    h('div', { class: 'head' },
+      h('strong', { text: 'Verificación ' + (i + 1) }),
+      h('button', { class: 'lb-btn sm', type: 'button', onclick: () => { d.rows.splice(i + 1, 0, { ...row }); rerender(); }, text: 'Duplicar' }),
+      h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Quitar verificación ' + (i + 1), onclick: () => { d.rows.splice(i, 1); rerender(); }, text: 'Quitar' })),
+    h('div', { class: 'lb-row' }, typeSel.wrap, points.wrap, label.wrap),
+    sheetF.wrap, parts);
+}
+
+async function exerciseFormScreen(ctx, id) {
+  const root = ctx.root;
+  let d;
+  try { d = await ensureDraft(id); } catch (err) {
+    root.replaceChildren(page('mid', failureBox(err, err.status === 404 ? null : () => K.route()), h('p', { class: 'state' }, h('a', { class: 'lb-btn', href: '#/admin/ejercicios', text: 'Volver a ejercicios' }))));
+    return {};
+  }
+  if (ctx.stale()) return {};
+  let rowErrors = {};
+  const removeUnload = guardUnload(() => draftDirty(exDraft));
+
+  const f = {
+    title: field('Título', 'input', { value: d.form.title, maxlength: 200, required: true }),
+    points: field('Puntos del ejercicio', 'input', { value: d.form.points, inputmode: 'decimal', required: true }),
+    status: field('Estado', 'select', { value: d.form.status, options: [{ value: 'draft', label: 'Borrador' }, { value: 'published', label: 'Publicado' }], hint: 'Solo los ejercicios publicados se pueden usar en exámenes.' }),
+    instructions: field('Instrucciones para el estudiante', 'textarea', { value: d.form.instructions, rows: 5 }),
+  };
+  for (const k of Object.keys(f)) f[k].input.addEventListener('input', () => { d.form[k] = f[k].input.value; });
+  f.status.input.addEventListener('change', () => { d.form.status = f.status.input.value; });
+
+  const checksBox = h('div');
+  const summary = h('div', { 'aria-live': 'polite' });
+  const renderChecks = () => {
+    checksBox.replaceChildren(...(d.rows.length
+      ? d.rows.map((_, i) => checkRowEditor(d, i, rowErrors, renderChecks))
+      : [h('p', { class: 'muted', text: 'Aún no hay verificaciones. Agrega al menos una para poder publicar el ejercicio.' })]));
+  };
+  renderChecks();
+  const addType = field('Tipo de verificación', 'select', { options: C.CHECK_TYPES });
+  const addBtn = h('button', { class: 'lb-btn', type: 'button', text: 'Agregar verificación', onclick: () => { d.rows.push(C.blankCheckRow(addType.input.value)); rowErrors = {}; renderChecks(); const last = checksBox.lastElementChild; if (last) { const i = last.querySelector('input'); if (i) i.focus(); } } });
+
+  const saveBtn = h('button', { class: 'lb-btn primary', type: 'submit', text: d.id ? 'Guardar cambios' : 'Crear ejercicio' });
+  const form = h('form', { novalidate: true, 'aria-label': 'Ejercicio' });
+
+  form.addEventListener('submit', async e => {
+    e.preventDefault();
+    summary.replaceChildren(); rowErrors = {};
+    const errors = C.validateExerciseForm(d.form);
+    const parsed = C.rowsToChecks(d.rows);
+    if (d.form.status === 'published' && !d.rows.length && !errors.status) errors.status = 'Un ejercicio publicado necesita al menos una verificación.';
+    parsed.errors.forEach(x => { if (x.index >= 0) rowErrors[x.index] = x.errors; });
+    const first = applyErrors(f, errors);
+    renderChecks();
+    if (first || !parsed.ok) {
+      summary.replaceChildren(notice('error', 'Revisa los campos marcados.'));
+      if (first) first.input.focus(); else { const bad = checksBox.querySelector('[aria-invalid="true"]'); if (bad) bad.focus(); }
+      return;
+    }
+    const sheetChanged = C.workbookKey(d.workbook) !== d.baseWb;
+    const payload = C.exerciseFormToPayload(d.form, parsed.checks, d.id ? (sheetChanged ? d.workbook : null) : d.workbook);
+    await withBusy(saveBtn, async () => {
+      try {
+        if (d.id) {
+          const saved = await api.put('/admin/exercises/' + d.id, payload);
+          exDraft = draftFromApi(saved);
+          Sim.toast('Ejercicio guardado.');
+          navigate('#/admin/ejercicios/' + saved.id, true);
+        } else {
+          const created = await api.post('/admin/exercises', payload);
+          exDraft = draftFromApi(created);
+          Sim.toast('Ejercicio creado.');
+          navigate('#/admin/ejercicios/' + created.id, true);
+        }
+      } catch (err) {
+        const map = {};
+        (err.fields || []).forEach(p => {
+          const m = /^checks\.(\d+)\.(\w+)/.exec(p);
+          if (m) { rowErrors[+m[1]] = { ...(rowErrors[+m[1]] || {}), [m[2]]: 'Valor no válido.' }; }
+          else map[p] = 'Valor no válido.';
+        });
+        applyErrors(f, map); renderChecks();
+        summary.replaceChildren(notice('error', C.errorMessage(err)));
+      }
+    });
+  });
+
+  const remove = async () => {
+    const ok = await confirmDialog({ title: 'Eliminar ejercicio', message: ['¿Eliminar "' + d.form.title + '"? No se puede deshacer.'], confirmLabel: 'Eliminar', danger: true });
+    if (!ok) return;
+    try { await api.del('/admin/exercises/' + d.id); exDraft = null; Sim.toast('Ejercicio eliminado.'); navigate('#/admin/ejercicios'); }
+    catch (err) { await infoDialog('No se pudo eliminar', C.errorMessage(err)); }
+  };
+
+  form.append(
+    h('div', { class: 'card' }, h('h2', { text: 'Datos del ejercicio' }), f.title.wrap, h('div', { class: 'lb-row' }, f.points.wrap, f.status.wrap), f.instructions.wrap),
+    h('div', { class: 'card' }, h('h2', { text: 'Hoja inicial' }),
+      h('p', { class: 'muted', text: d.workbook.sheets.length + (d.workbook.sheets.length === 1 ? ' hoja' : ' hojas') + ' · ' + countCells(d.workbook) + ' celdas con datos' + (C.workbookKey(d.workbook) !== d.baseWb ? ' · cambios sin guardar' : '') }),
+      h('p', { class: 'small muted', text: 'Edita la hoja dentro del simulador real. Allí también puedes probar la calificación con una respuesta de ejemplo.' }),
+      h('a', { class: 'lb-btn', href: sheetHash(d), text: 'Editar hoja inicial' })),
+    h('div', { class: 'card' }, h('h2', { text: 'Verificaciones' }),
+      h('p', { class: 'small muted', text: 'Los puntos de cada verificación se reparten proporcionalmente al total de puntos del ejercicio.' }),
+      checksBox,
+      h('div', { class: 'lb-row', style: 'align-items:flex-end' }, addType.wrap, h('div', { class: 'lb-field' }, addBtn))),
+    summary,
+    h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px' },
+      saveBtn,
+      h('a', { class: 'lb-btn', href: '#/admin/ejercicios', text: 'Volver' }),
+      d.id ? h('button', { class: 'lb-btn danger', type: 'button', onclick: remove, text: 'Eliminar' }) : null));
+
+  root.replaceChildren(page('mid', h('div', { class: 'lab-head' }, h('h1', { text: d.id ? 'Editar ejercicio' : 'Nuevo ejercicio' })), form));
+  return {
+    async leave(next) {
+      if (sameExercise(d, next, true)) { exDraft.keep = true; return true; }
+      return draftDirty(exDraft) ? confirmLeave() : true;
+    },
+    destroy() { removeUnload(); },
+  };
+}
+screens.adminExerciseNew = ctx => exerciseFormScreen(ctx, null);
+screens.adminExercise = ctx => exerciseFormScreen(ctx, ctx.params.id);
+
+/* ----- exercise sheet (initial workbook + grading preview) ----- */
+function previewList(out) {
+  return h('div', null,
+    h('p', null, h('strong', { text: 'Puntaje de la prueba: ' + C.formatNumber(out.score) + ' / ' + C.formatNumber(out.maxScore) })),
+    h('ul', { class: 'checks' }, out.results.map(r => h('li', { class: r.passed ? 'pass' : 'fail' },
+      h('span', { class: 'mark', 'aria-hidden': 'true', text: r.passed ? '✓' : '✗' }),
+      h('span', null, r.label, h('span', { class: 'small muted', text: ' · ' + (r.ref || '') + (r.actual !== undefined ? ' obtuvo "' + r.actual + '"' : '') }), h('span', { class: 'sr-only', text: r.passed ? ' (correcto)' : ' (incorrecto)' })),
+      h('span', { class: 'pts', text: C.formatNumber(r.earned) + ' / ' + C.formatNumber(r.points) })))));
+}
+
+async function exerciseSheetScreen(ctx, id) {
+  const root = ctx.root;
+  let d;
+  try { d = await ensureDraft(id); } catch (err) {
+    root.replaceChildren(page('mid', failureBox(err, err.status === 404 ? null : () => K.route())));
+    return {};
+  }
+  if (ctx.stale()) return {};
+  const removeUnload = guardUnload(() => C.workbookKey(Sim.getWorkbook()) !== d.baseWb);
+  const panel = h('div', { class: 'panel', hidden: true, 'aria-live': 'polite' });
+  const grab = () => { d.workbook = Sim.getWorkbook(); return d.workbook; };
+
+  const saveBtn = h('button', { class: 'lb-btn sm primary', type: 'button', text: 'Guardar hoja' });
+  saveBtn.addEventListener('click', () => withBusy(saveBtn, async () => {
+    const wb = grab();
+    if (!d.id) { Sim.toast('La hoja se guardará junto con el ejercicio.'); return; }
+    try {
+      const saved = await api.put('/admin/exercises/' + d.id, { workbook: wb });
+      d.baseWb = C.workbookKey(saved.workbook); d.workbook = saved.workbook;
+      Sim.toast('Hoja guardada.');
+    } catch (err) { await infoDialog('No se pudo guardar la hoja', C.errorMessage(err)); }
+  }));
+
+  const testBtn = h('button', { class: 'lb-btn sm', type: 'button', text: 'Probar calificación', title: d.id ? 'Califica la hoja actual como si fuera la respuesta de un estudiante' : 'Guarda el ejercicio primero para poder probar la calificación' });
+  if (!d.id) testBtn.disabled = true;
+  testBtn.addEventListener('click', () => withBusy(testBtn, async () => {
+    const wb = grab();
+    const body = { workbook: wb };
+    const parsed = C.rowsToChecks(d.rows);
+    const pts = Number(String(d.form.points).replace(',', '.'));
+    let note = null;
+    if (parsed.ok && parsed.checks.length) { body.checks = parsed.checks; if (pts > 0) body.points = pts; }
+    else note = 'Las verificaciones del formulario están vacías o tienen errores: se usan las ya guardadas.';
+    panel.hidden = false;
+    panel.replaceChildren(loadingBox('Calificando…'));
+    K.measure();
+    try {
+      const out = await api.post('/admin/exercises/' + d.id + '/preview-grade', body);
+      panel.replaceChildren(h('h3', { text: 'Resultado de la prueba' }), note ? notice('warn', note) : null, previewList(out));
+    } catch (err) { panel.replaceChildren(notice('error', C.errorMessage(err))); }
+    K.measure();
+  }));
+
+  const strip = h('div', null,
+    h('div', { class: 'row' },
+      h('span', { class: 'title', text: 'Hoja inicial: ' + (d.form.title || 'Nuevo ejercicio') }),
+      h('span', { class: 'spacer' }), saveBtn, testBtn,
+      h('a', { class: 'lb-btn sm', href: formHash(d), text: 'Volver al formulario' })),
+    h('p', { class: 'small muted', style: 'margin:4px 0 0', text: 'Edita la hoja como quieras. "Probar calificación" usa la hoja actual como respuesta de un estudiante.' }),
+    panel);
+  root.replaceChildren();
+  K.showSim(strip);
+  Sim.loadWorkbook(d.workbook, { readOnly: false, title: d.form.title || 'Hoja inicial' });
+  Sim.setSaveLabel('· Se guarda con el botón Guardar hoja');
+  return {
+    async leave(next) {
+      grab();
+      if (sameExercise(d, next, false)) { exDraft.keep = true; return true; }
+      return C.workbookKey(d.workbook) !== d.baseWb || draftDirty(exDraft) ? confirmLeave() : true;
+    },
+    destroy() { removeUnload(); },
+  };
+}
+screens.adminExerciseNewSheet = ctx => exerciseSheetScreen(ctx, null);
+screens.adminExerciseSheet = ctx => exerciseSheetScreen(ctx, ctx.params.id);
+
+/* ================= Exams: list ================= */
+screens.adminExams = async ctx => {
+  const root = ctx.root;
+  const load = async () => {
+    root.replaceChildren(loadingBox('Cargando exámenes…'));
+    let list;
+    try { list = await api.get('/admin/exams'); } catch (err) { if (!ctx.stale()) root.replaceChildren(page('', failureBox(err, load))); return; }
+    if (ctx.stale()) return;
+    const toggle = async (ex, btn) => withBusy(btn, async () => {
+      try { await api.put('/admin/exams/' + ex.id, { status: ex.status === 'published' ? 'draft' : 'published' }); await load(); }
+      catch (err) { await infoDialog(ex.status === 'published' ? 'No se pudo despublicar' : 'No se pudo publicar', C.errorMessage(err)); }
+    });
+    const remove = async ex => {
+      const ok = await confirmDialog({ title: 'Eliminar examen', message: ['¿Eliminar "' + ex.title + '"? No se puede deshacer.'], confirmLabel: 'Eliminar', danger: true });
+      if (!ok) return;
+      try { await api.del('/admin/exams/' + ex.id); Sim.toast('Examen eliminado.'); await load(); }
+      catch (err) { await infoDialog('No se pudo eliminar', C.errorMessage(err)); }
+    };
+    root.replaceChildren(page('',
+      h('div', { class: 'lab-head' }, h('h1', { text: 'Exámenes' }), h('a', { class: 'lb-btn primary', href: '#/admin/examenes/nuevo', text: 'Nuevo examen' })),
+      list.length ? table(['Título', 'Estado', 'Duración', 'Ejercicios', 'Intentos', 'Disponibilidad', ''], list.map(ex => {
+        const tbtn = h('button', { class: 'lb-btn sm', type: 'button', text: ex.status === 'published' ? 'Despublicar' : 'Publicar' });
+        tbtn.addEventListener('click', () => toggle(ex, tbtn));
+        return h('tr', null,
+          h('td', null, h('a', { href: '#/admin/examenes/' + ex.id, text: ex.title })),
+          h('td', null, statusBadge(ex.status)),
+          h('td', { class: 'num', text: ex.durationMinutes + ' min' }),
+          h('td', { class: 'num', text: String(ex.exerciseCount) }),
+          h('td', { class: 'num', text: String(ex.attemptCount) }),
+          h('td', { class: 'small', text: ex.availableFrom || ex.availableUntil ? (ex.availableFrom ? fmtDate(ex.availableFrom) : 'siempre') + ' → ' + (ex.availableUntil ? fmtDate(ex.availableUntil) : 'sin cierre') : 'Siempre' }),
+          h('td', null, h('div', { class: 'actions' },
+            h('a', { class: 'lb-btn sm', href: '#/admin/examenes/' + ex.id, text: 'Editar' }), tbtn,
+            h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Eliminar ' + ex.title, onclick: () => remove(ex), text: 'Eliminar' }))));
+      }), [2, 3, 4]) : h('div', { class: 'card state' }, h('p', { text: 'Todavía no hay exámenes.' }), h('a', { class: 'lb-btn primary', href: '#/admin/examenes/nuevo', text: 'Crear el primero' }))));
+  };
+  await load();
+};
+
+/* ================= Exams: editor ================= */
+async function examEditor(ctx, id) {
+  const root = ctx.root;
+  const flash = K.state.flash; K.state.flash = '';
+  let exam = null, exercises;
+  try {
+    const [list, detail] = await Promise.all([api.get('/admin/exercises'), id ? api.get('/admin/exams/' + id) : null]);
+    exercises = list; exam = detail;
+  } catch (err) {
+    root.replaceChildren(page('mid', failureBox(err, err.status === 404 ? null : () => K.route()), h('p', { class: 'state' }, h('a', { class: 'lb-btn', href: '#/admin/examenes', text: 'Volver a exámenes' }))));
+    return {};
+  }
+  if (ctx.stale()) return {};
+
+  const form = exam ? C.examToForm(exam) : C.examToForm({ title: '', instructions: '', status: 'draft' });
+  let picked = exam ? exam.exercises.map(e => ({ id: e.id, title: e.title, points: e.points, status: e.status })) : [];
+  const baseline = () => JSON.stringify({ form, ids: picked.map(p => p.id) });
+  let base = baseline();
+  const removeUnload = guardUnload(() => baseline() !== base);
+
+  const f = {
+    title: field('Título', 'input', { value: form.title, maxlength: 200, required: true }),
+    instructions: field('Instrucciones para el estudiante', 'textarea', { value: form.instructions, rows: 6 }),
+    durationMinutes: field('Duración (minutos)', 'input', { value: form.durationMinutes, inputmode: 'numeric', required: true }),
+    maxAttempts: field('Intentos máximos', 'input', { value: form.maxAttempts, inputmode: 'numeric', required: true }),
+    pickCount: field('Ejercicios por intento', 'input', { value: form.pickCount, inputmode: 'numeric', hint: 'Vacío = todos los ejercicios del examen, en orden aleatorio.' }),
+    scale: field('Escala de la nota', 'input', { value: form.scale, inputmode: 'decimal', hint: 'Por ejemplo 20 o 10.' }),
+    passPercent: field('Porcentaje para aprobar', 'input', { value: form.passPercent, inputmode: 'decimal' }),
+    gradePolicy: field('Nota del examen', 'select', { value: form.gradePolicy, options: [{ value: 'best', label: 'Mejor intento' }, { value: 'last', label: 'Último intento' }] }),
+    status: field('Estado', 'select', { value: form.status, options: [{ value: 'draft', label: 'Borrador' }, { value: 'published', label: 'Publicado' }], hint: 'Publicar exige al menos un ejercicio.' }),
+    availableFrom: field('Disponible desde', 'input', { type: 'datetime-local', value: form.availableFrom, hint: 'Opcional.' }),
+    availableUntil: field('Disponible hasta', 'input', { type: 'datetime-local', value: form.availableUntil, hint: 'Opcional.' }),
+  };
+  for (const k of Object.keys(f)) {
+    f[k].input.addEventListener('input', () => { form[k] = f[k].input.value; });
+    f[k].input.addEventListener('change', () => { form[k] = f[k].input.value; });
+  }
+
+  const pickedBox = h('ol', { 'aria-label': 'Ejercicios del examen' });
+  const availBox = h('ul', { 'aria-label': 'Ejercicios disponibles' });
+  const renderPicker = () => {
+    const ids = new Set(picked.map(p => p.id));
+    pickedBox.replaceChildren(...(picked.length ? picked.map((p, i) => h('li', { class: p.status !== 'published' ? 'off' : null },
+      h('span', { class: 't' }, (i + 1) + '. ' + p.title + ' ', h('span', { class: 'small muted', text: '(' + C.formatNumber(p.points) + ' pts)' }), p.status !== 'published' ? badge('Borrador', 'warn') : null),
+      h('button', { class: 'lb-btn sm', type: 'button', 'aria-label': 'Subir ' + p.title, disabled: i === 0, onclick: () => { picked = C.moveItem(picked, i, i - 1); renderPicker(); focusItem(i - 1, 'Subir'); }, text: '↑' }),
+      h('button', { class: 'lb-btn sm', type: 'button', 'aria-label': 'Bajar ' + p.title, disabled: i === picked.length - 1, onclick: () => { picked = C.moveItem(picked, i, i + 1); renderPicker(); focusItem(i + 1, 'Bajar'); }, text: '↓' }),
+      h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Quitar ' + p.title, onclick: () => { picked.splice(i, 1); renderPicker(); }, text: 'Quitar' })))
+      : [h('li', { class: 'muted', text: 'Aún no agregaste ejercicios.' })]));
+    const avail = exercises.filter(e => !ids.has(e.id));
+    availBox.replaceChildren(...(avail.length ? avail.map(e => h('li', { class: e.status !== 'published' ? 'off' : null },
+      h('span', { class: 't' }, e.title + ' ', h('span', { class: 'small muted', text: '(' + C.formatNumber(e.points) + ' pts)' }), e.status !== 'published' ? badge('Borrador: publícalo para usarlo', 'warn') : null),
+      h('button', { class: 'lb-btn sm', type: 'button', disabled: e.status !== 'published', 'aria-label': 'Agregar ' + e.title, onclick: () => { picked.push({ id: e.id, title: e.title, points: e.points, status: e.status }); renderPicker(); }, text: 'Agregar' })))
+      : [h('li', { class: 'muted', text: 'No quedan ejercicios por agregar.' })]));
+  };
+  const focusItem = (i, what) => { const li = pickedBox.children[i]; const b = li && [...li.querySelectorAll('button')].find(x => (x.getAttribute('aria-label') || '').startsWith(what)); if (b && !b.disabled) b.focus(); };
+  renderPicker();
+
+  const summary = h('div', { 'aria-live': 'polite' });
+  if (flash) summary.append(notice('error', flash));
+  const saveBtn = h('button', { class: 'lb-btn primary', type: 'submit', text: id ? 'Guardar cambios' : 'Crear examen' });
+  const form_ = h('form', { novalidate: true, 'aria-label': 'Examen' });
+
+  form_.addEventListener('submit', async e => {
+    e.preventDefault();
+    summary.replaceChildren();
+    const first = applyErrors(f, C.validateExamForm(form));
+    if (first) { summary.append(notice('error', 'Revisa los campos marcados.')); first.input.focus(); return; }
+    if (form.status === 'published' && !picked.length) { f.status.setError('Un examen publicado necesita al menos un ejercicio.'); f.status.input.focus(); summary.append(notice('error', 'Agrega al menos un ejercicio antes de publicar.')); return; }
+    const payload = C.examFormToPayload(form);
+    const ids = picked.map(p => p.id);
+    await withBusy(saveBtn, async () => {
+      let createdId = null;
+      try {
+        if (!id) {
+          const created = await api.post('/admin/exams', { ...payload, status: 'draft' });
+          createdId = created.id;
+          await api.put('/admin/exams/' + createdId + '/exercises', { exerciseIds: ids });
+          if (payload.status === 'published') await api.put('/admin/exams/' + createdId, { status: 'published' });
+          Sim.toast('Examen creado.');
+          base = baseline();
+          navigate('#/admin/examenes/' + createdId, true);
+        } else {
+          if (payload.status === 'published') {
+            await api.put('/admin/exams/' + id + '/exercises', { exerciseIds: ids });
+            await api.put('/admin/exams/' + id, payload);
+          } else {
+            await api.put('/admin/exams/' + id, payload);
+            await api.put('/admin/exams/' + id + '/exercises', { exerciseIds: ids });
+          }
+          Sim.toast('Examen guardado.');
+          base = baseline();
+          navigate('#/admin/examenes/' + id, true);
+        }
+      } catch (err) {
+        if (createdId) {
+          // The exam exists as a draft but a later step failed: continue on its edit page with the reason.
+          K.state.flash = 'El examen se creó como borrador, pero no se pudo completar: ' + C.errorMessage(err);
+          base = baseline();
+          navigate('#/admin/examenes/' + createdId, true);
+          return;
+        }
+        const map = {};
+        (err.fields || []).forEach(p => { map[p] = 'Valor no válido.'; });
+        applyErrors(f, map);
+        summary.replaceChildren(notice('error', C.errorMessage(err)));
+      }
+    });
+  });
+
+  const togglePublish = h('button', { class: 'lb-btn', type: 'button', text: exam && exam.status === 'published' ? 'Despublicar' : 'Publicar ahora' });
+  togglePublish.addEventListener('click', () => withBusy(togglePublish, async () => {
+    summary.replaceChildren();
+    try {
+      await api.put('/admin/exams/' + id, { status: exam.status === 'published' ? 'draft' : 'published' });
+      Sim.toast('Estado actualizado.');
+      K.route();
+    } catch (err) { summary.replaceChildren(notice('error', C.errorMessage(err))); }
+  }));
+  const remove = async () => {
+    const ok = await confirmDialog({ title: 'Eliminar examen', message: ['¿Eliminar "' + form.title + '"? No se puede deshacer.'], confirmLabel: 'Eliminar', danger: true });
+    if (!ok) return;
+    try { await api.del('/admin/exams/' + id); base = baseline(); Sim.toast('Examen eliminado.'); navigate('#/admin/examenes'); }
+    catch (err) { await infoDialog('No se pudo eliminar', C.errorMessage(err)); }
+  };
+
+  form_.append(
+    h('div', { class: 'card' }, h('h2', { text: 'Datos del examen' }), f.title.wrap, f.instructions.wrap,
+      h('div', { class: 'lb-row' }, f.durationMinutes.wrap, f.maxAttempts.wrap, f.pickCount.wrap),
+      h('div', { class: 'lb-row' }, f.scale.wrap, f.passPercent.wrap, f.gradePolicy.wrap),
+      h('div', { class: 'lb-row' }, f.status.wrap, f.availableFrom.wrap, f.availableUntil.wrap)),
+    h('div', { class: 'card' }, h('h2', { text: 'Ejercicios' }),
+      h('p', { class: 'small muted', text: 'El orden de la lista se usa como referencia; en cada intento se sortean al azar. Solo se pueden agregar ejercicios publicados.' }),
+      h('div', { class: 'picker' },
+        h('div', null, h('h3', { text: 'En este examen' }), pickedBox),
+        h('div', null, h('h3', { text: 'Disponibles' }), availBox))),
+    summary,
+    h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px' },
+      saveBtn,
+      id ? togglePublish : null,
+      h('a', { class: 'lb-btn', href: '#/admin/examenes', text: 'Volver' }),
+      id ? h('button', { class: 'lb-btn danger', type: 'button', onclick: remove, text: 'Eliminar' }) : null));
+
+  root.replaceChildren(page('mid',
+    h('div', { class: 'lab-head' }, h('h1', { text: id ? 'Editar examen' : 'Nuevo examen' }), exam ? statusBadge(exam.status) : null),
+    id ? h('p', { class: 'small muted' }, 'Enlace directo para estudiantes: ', h('code', { text: location.origin + location.pathname + '?exam=' + id })) : null,
+    form_));
+  return {
+    async leave() { return baseline() !== base ? confirmLeave() : true; },
+    destroy() { removeUnload(); },
+  };
+}
+screens.adminExamNew = ctx => examEditor(ctx, null);
+screens.adminExam = ctx => examEditor(ctx, ctx.params.id);
+
+/* ================= Results ================= */
+screens.adminResults = async ctx => {
+  const root = ctx.root;
+  const filters = { examId: ctx.query.examId || '', userId: ctx.query.userId || '' };
+  let all, exams;
+  try {
+    [all, exams] = await Promise.all([api.get('/admin/results'), api.get('/admin/exams')]);
+  } catch (err) { root.replaceChildren(page('', failureBox(err, () => K.route()))); return {}; }
+  if (ctx.stale()) return {};
+  const students = [...new Map(all.summary.map(s => [s.userId, s])).values()].sort((a, b) => a.userName.localeCompare(b.userName, 'es'));
+
+  const examSel = field('Examen', 'select', { value: filters.examId, options: [{ value: '', label: 'Todos los exámenes' }, ...exams.map(e => ({ value: e.id, label: e.title }))] });
+  const userSel = field('Estudiante', 'select', { value: filters.userId, options: [{ value: '', label: 'Todos los estudiantes' }, ...students.map(s => ({ value: s.userId, label: s.userName + ' (' + s.userEmail + ')' }))] });
+  const out = h('div', { 'aria-live': 'polite' });
+
+  const load = async () => {
+    out.replaceChildren(loadingBox('Cargando resultados…'));
+    const qs = new URLSearchParams();
+    if (filters.examId) qs.set('examId', filters.examId);
+    if (filters.userId) qs.set('userId', filters.userId);
+    history.replaceState(null, '', location.pathname + location.search + '#/admin/resultados' + (qs.toString() ? '?' + qs : ''));
+    let data;
+    try { data = await api.get('/admin/results' + (qs.toString() ? '?' + qs : '')); } catch (err) { if (!ctx.stale()) out.replaceChildren(failureBox(err, load)); return; }
+    if (ctx.stale()) return;
+    out.replaceChildren(
+      h('h2', { text: 'Resultado por estudiante y examen' }),
+      data.summary.length ? table(['Estudiante', 'Examen', 'Intentos', 'Resultado que cuenta', 'Estado'], data.summary.map(s => h('tr', null,
+        h('td', null, s.userName, h('div', { class: 'small muted', text: s.userEmail })),
+        h('td', { text: s.examTitle }),
+        h('td', { class: 'num', text: String(s.attemptsUsed) }),
+        h('td', { class: 'num', text: s.result ? C.formatGrade(s.result.grade, s.scale) + ' · ' + C.formatPercent(s.result.scorePercent) : '-' }),
+        h('td', null, s.result ? badge(s.result.passed ? 'Aprobado' : 'Reprobado', s.result.passed ? 'ok' : 'bad') : badge('Sin calificar'))))) : h('div', { class: 'card state', text: 'No hay resultados con estos filtros.' }),
+      h('h2', { style: 'margin-top:18px', text: 'Intentos' }),
+      data.attempts.length ? table(['Estudiante', 'Examen', 'Intento', 'Estado', '%', 'Nota', 'Inicio', 'Envío', ''], data.attempts.map(a => h('tr', null,
+        h('td', null, a.userName, h('div', { class: 'small muted', text: a.userEmail })),
+        h('td', { text: a.examTitle }),
+        h('td', { class: 'num', text: String(a.number) }),
+        h('td', null, badge(C.statusLabel(a.status), a.status === 'in_progress' ? 'info' : '')),
+        h('td', { class: 'num', text: a.status === 'in_progress' ? '-' : C.formatPercent(a.scorePercent) }),
+        h('td', { class: 'num', text: a.status === 'in_progress' ? '-' : C.formatGrade(a.grade, a.scale) }),
+        h('td', { class: 'nowrap', text: fmtDate(a.startedAt) }),
+        h('td', { class: 'nowrap', text: fmtDate(a.submittedAt) }),
+        h('td', null, h('a', { class: 'lb-btn sm', href: '#/admin/intentos/' + a.id, text: 'Ver detalle' })))), [2, 4, 5]) : h('div', { class: 'card state', text: 'No hay intentos con estos filtros.' }));
+  };
+  examSel.input.addEventListener('change', () => { filters.examId = examSel.input.value; load(); });
+  userSel.input.addEventListener('change', () => { filters.userId = userSel.input.value; load(); });
+  root.replaceChildren(page('',
+    h('div', { class: 'lab-head' }, h('h1', { text: 'Resultados' })),
+    h('div', { class: 'card' }, h('div', { class: 'lb-row' }, examSel.wrap, userSel.wrap)),
+    h('div', { style: 'margin-top:12px' }, out)));
+  await load();
+  return {};
+};
+
+/* ----- attempt detail ----- */
+screens.adminAttempt = async ctx => {
+  const root = ctx.root;
+  let a;
+  try { a = await api.get('/admin/attempts/' + ctx.params.id); } catch (err) {
+    root.replaceChildren(page('mid', failureBox(err, err.status === 404 ? null : () => K.route()), h('p', { class: 'state' }, h('a', { class: 'lb-btn', href: '#/admin/resultados', text: 'Volver a resultados' }))));
+    return {};
+  }
+  if (ctx.stale()) return {};
+  let cur = 0;
+  const stepper = h('div', { class: 'stepper', role: 'group', 'aria-label': 'Ejercicios del intento' });
+  const panel = h('div', { class: 'panel', role: 'region', 'aria-label': 'Detalle del ejercicio' });
+  const detailList = ans => ans.details && ans.details.length
+    ? h('ul', { class: 'checks' }, ans.details.map(r => h('li', { class: r.passed ? 'pass' : 'fail' },
+      h('span', { class: 'mark', 'aria-hidden': 'true', text: r.passed ? '✓' : '✗' }),
+      h('span', null, r.label, h('span', { class: 'small muted', text: ' · ' + (r.ref || '') + (r.actual !== undefined ? ' obtuvo "' + r.actual + '"' : '') }), h('span', { class: 'sr-only', text: r.passed ? ' (correcto)' : ' (incorrecto)' })),
+      h('span', { class: 'pts', text: C.formatNumber(r.earned) + ' / ' + C.formatNumber(r.points) }))))
+    : h('p', { class: 'muted', text: 'Sin verificaciones calificadas.' });
+
+  const show = i => {
+    cur = i;
+    const ans = a.answers[i];
+    stepper.replaceChildren(...a.answers.map((x, j) => h('button', {
+      class: 'step' + (x.submittedAt ? ' done' : ''), type: 'button', 'aria-current': j === cur ? 'true' : null, title: x.title,
+      onclick: () => { show(j); }, text: (j + 1) + ' · ' + (x.score === null ? '-' : C.formatNumber(x.score) + '/' + C.formatNumber(x.maxScore)),
+    })));
+    if (!ans) { panel.replaceChildren(h('p', { class: 'muted', text: 'Este intento no tiene ejercicios.' })); Sim.loadWorkbook(blankWorkbook(), { readOnly: true }); return; }
+    panel.replaceChildren(
+      h('h3', null, ans.position + '. ' + ans.title + ' ', ans.score === null ? badge('Sin calificar', 'warn') : badge(C.formatNumber(ans.score) + ' / ' + C.formatNumber(ans.maxScore) + ' pts', 'info')),
+      ans.submittedAt ? h('p', { class: 'small muted', text: 'Enviado: ' + fmtDate(ans.submittedAt) }) : h('p', { class: 'small muted', text: 'Sin enviar.' }),
+      detailList(ans));
+    Sim.loadWorkbook(ans.workbook || blankWorkbook(), { readOnly: true, title: ans.title });
+    Sim.setSaveLabel('· Respuesta del estudiante (solo lectura)');
+    K.measure();
+  };
+
+  const strip = h('div', null,
+    h('div', { class: 'row' },
+      h('span', { class: 'title', text: a.user.name + ' · ' + a.examTitle }),
+      h('span', { class: 'chip', text: 'Intento ' + a.number }),
+      badge(C.statusLabel(a.status), a.status === 'in_progress' ? 'info' : ''),
+      a.status === 'in_progress' ? null : h('span', { class: 'chip', text: C.formatPercent(a.scorePercent) + ' · ' + C.formatGrade(a.grade, a.scale) }),
+      h('span', { class: 'spacer' }),
+      h('a', { class: 'lb-btn sm', href: '#/admin/resultados', text: 'Volver a resultados' })),
+    h('div', { class: 'row' }, stepper),
+    panel);
+  root.replaceChildren();
+  K.showSim(strip);
+  show(0);
+  return {};
+};
 })();
 </script>
 </body>

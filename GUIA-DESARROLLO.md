@@ -12,6 +12,10 @@ Esta guía explica cómo está construido el simulador y cómo convertir un bot�
 | `src/body.html` | El HTML de la aplicación (cinta, barra de fórmulas, cuadrícula, diálogos). |
 | `src/engine.js` | Motor de fórmulas, **sin DOM**: direcciones, valores, parser, evaluación y biblioteca de funciones. Lo usa el navegador (`window.GridEngine`) y el servidor (para calificar). |
 | `src/app.js` | La interfaz: cuadrícula, edición, cinta, teclado, modo teléfono. Usa el motor. |
+| `src/lab-core.js` | Lógica **pura** del laboratorio (rutas hash, enlaces `?exam=`, reloj del servidor, autoguardado con debounce, verificaciones ⇄ API, validación de formularios). Sin DOM; tiene pruebas en `server/test/labcore.test.ts`. |
+| `src/lab.js` | Interfaz del laboratorio: barra superior, enrutador, ingreso/registro, exámenes, instrucciones y examen en curso. Solo arranca si responde `GET /api/auth/me`. |
+| `src/lab-admin.js` | Pantallas de administración (ejercicios, exámenes, resultados). Se conecta a `window.LabApp`. |
+| `src/lab.css` | Estilos del laboratorio (usa las variables de color del simulador). |
 | `src/template.html` | Plantilla del documento (`doctype`, `<head>`, favicon, metadatos). |
 | `scripts/build.mjs` | Une todo en un solo HTML (ver la sección 10). |
 | `index.html` | **Generado.** Documento completo que se abre con doble clic o se sube a cualquier hosting. |
@@ -65,6 +69,21 @@ En `app.js` ese objeto es `ST` (`ST.wb`, `ST.cur`, `ST.DEC`); el resto de nombre
 | Phone mode | Modo teléfono: cinta flotante, barra de acciones y teclado GridLab. |
 | Keyboard | Atajos de teclado de Excel en español. |
 | Boot | Arranque. |
+
+### Integración del simulador con el laboratorio (`window.Lab`)
+
+Al final de `app.js` se expone una API pequeña que usa `lab.js`; el simulador sigue funcionando igual sin ella:
+
+| Función | Qué hace |
+| --- | --- |
+| `Lab.loadWorkbook(wb, {readOnly, title})` | Carga un libro en la cuadrícula sin tocar el libro de práctica ni su `localStorage` (el de práctica queda guardado en memoria). |
+| `Lab.getWorkbook()` | Libro actual como JSON (confirma antes la celda que se esté editando). |
+| `Lab.setReadOnly(bool)` | Modo solo lectura: bloquea editor, teclado, pegar, cinta, menús, relleno, ancho de columnas y hojas. |
+| `Lab.onChange(cb)` | Avisa de cada cambio del libro; devuelve la función para cancelar. No se dispara con `loadWorkbook`. |
+| `Lab.resetToPractice()` | Vuelve al libro de práctica libre. |
+| `Lab.refresh()`, `Lab.setSaveLabel(t)`, `Lab.toast(t)` | Reajustar el dibujo al volver a mostrar el simulador, texto del estado de guardado y aviso breve. |
+
+Reglas para quien modifique `app.js`: toda función que cambie datos debe llamar primero a `pushUndo()` (en solo lectura lanza `RO_BLOCK` y nada se modifica); lo que no cambie datos, pero se ejecute desde la cinta, debe agregarse a `RO_SAFE` para seguir disponible en solo lectura. `save()` no escribe en `localStorage` mientras haya un libro de examen cargado (`persist=false`).
 
 ## 3. Modelo de datos
 
@@ -251,7 +270,7 @@ XI.mi_icono = `<rect x="3" y="3" width="26" height="26" class="p"/><path d="M8 1
 
 ## 10. Compilar y publicar
 
-Edita solo los archivos de `src/` (`style.css`, `body.html`, `engine.js`, `app.js`, `template.html`). Después, dentro de la carpeta `excellab`, ejecuta:
+Edita solo los archivos de `src/` (`style.css`, `lab.css`, `body.html`, `engine.js`, `app.js`, `lab-core.js`, `lab.js`, `lab-admin.js`, `template.html`). Después, dentro de la carpeta `excellab`, ejecuta:
 
 ```bash
 npm run build:site     # solo la página (no necesita nada más que Node)

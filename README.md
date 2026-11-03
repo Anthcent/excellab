@@ -120,11 +120,61 @@ Errores: `{ "error": { "code": "...", "message": "...", "fields"?: [...] } }`. L
 
 El libro (`workbook`) tiene el formato de la sección 3 de `GUIA-DESARROLLO.md`. El servidor lo valida y limpia (máx. 20 hojas, 8000 celdas, ~1 MB por petición).
 
+## Pantallas y flujos
+
+Al abrir el sitio servido por el servidor, el navegador consulta `GET /api/auth/me`. Si la API responde (200 o 401) entra en **modo laboratorio**: aparece una barra superior con *Práctica libre · Exámenes · Mis resultados* (y, para administradores, *Ejercicios · Exámenes · Resultados*), el nombre del usuario y *Cerrar sesión* (o *Ingresar*). Si la API no responde, o la página se abre con `file://`, no cambia nada: solo el simulador de práctica, sin errores.
+
+**Estudiante**
+
+1. **Ingresar / Crear cuenta** (nombre, correo, contraseña de mínimo 8 caracteres y confirmación). Tras ingresar vuelve a la ruta que se quería abrir.
+2. **Exámenes**: tarjetas con duración, cantidad de ejercicios, intentos usados/restantes, estado (disponible, en curso → *Continuar*, cerrado, sin intentos) y mejor resultado con *Aprobado/Reprobado*.
+3. **Instrucciones**: reglas del examen y casilla obligatoria *He leído y acepto las instrucciones*, que habilita *Comenzar intento*. Si ya hay un intento en curso se ofrece *Continuar intento*.
+4. **Examen**: barra con título, intento, progreso (*n de N ejercicios*), cronómetro, lista de ejercicios y panel de instrucciones plegable, encima del simulador cargado con el libro del ejercicio. *Terminar ejercicio* pide confirmación, califica al instante (puntaje y lista de verificaciones cumplidas/falladas) y **bloquea** el ejercicio (solo lectura, insignia *Calificado*). *Finalizar examen* avisa de los ejercicios sin enviar y muestra el resultado: porcentaje, nota sobre la escala, aprobado/reprobado y detalle por ejercicio.
+5. **Mis resultados**: por examen, cada intento con nota y fecha, y el resultado que cuenta según la política (`best`/`last`).
+
+Comportamientos del examen: el cronómetro se calcula con la hora del **servidor** (`serverNow`/`deadlineAt`; el reloj local solo mide el tiempo transcurrido) y se reajusta con cada guardado; se avisa a los 5 min y 1 min; al llegar a 0 se finaliza solo. El borrador se guarda unos 2,5 s después de cada cambio, al cambiar de ejercicio, al ocultar la pestaña y al cerrarla. Al recargar a mitad del intento se retoma desde `GET /api/attempts/:id` (borradores, ejercicios enviados y tiempo). Los libros de examen **nunca** se guardan en el `localStorage` de la práctica libre.
+
+**Administrador**
+
+- **Ejercicios**: lista (puntos, estado, verificaciones, uso en exámenes), crear, editar y eliminar (si ya se usó, la API responde 409 y se muestra el motivo). El editor tiene título, instrucciones, puntos, estado, **hoja inicial editada dentro del simulador real** (*Editar hoja inicial* → *Guardar hoja*) y el editor de verificaciones (valor de celda, celda que usa funciones, valores de un rango escritos como tabla de texto: una fila por línea, celdas separadas por `;` o tabulador). *Probar calificación* toma la hoja que tengas en el simulador como respuesta de ejemplo y llama a `preview-grade`.
+- **Exámenes**: lista con publicar/despublicar; el editor tiene título, instrucciones, duración, intentos máximos, ejercicios por intento (vacío = todos), escala, porcentaje para aprobar, política de nota, estado, ventana de disponibilidad y el selector de ejercicios con orden (se guarda con `PUT /api/admin/exams/:id/exercises`). Los errores de la API (por ejemplo publicar sin ejercicios) se muestran tal cual.
+- **Resultados**: filtros por examen y estudiante, resumen por estudiante y tabla de intentos; el detalle de un intento muestra puntajes por ejercicio, el resultado de cada verificación y el libro enviado, en solo lectura dentro del simulador.
+
+### Rutas (hash)
+
+| Ruta | Pantalla |
+| --- | --- |
+| `#/practica` | Práctica libre (por defecto). |
+| `#/login`, `#/registro` | Ingreso y registro (`?next=` indica a dónde volver). |
+| `#/examenes`, `#/examenes/:id` | Lista de exámenes e instrucciones de un examen. |
+| `#/intento/:id` | Examen en curso; si el intento terminó, su resultado. |
+| `#/resultados` | Mis resultados. |
+| `#/admin/ejercicios`, `…/nuevo`, `…/:id`, `…/:id/hoja` | Ejercicios: lista, nuevo, editar, hoja inicial. |
+| `#/admin/examenes`, `…/nuevo`, `…/:id` | Exámenes: lista, nuevo, editar. |
+| `#/admin/resultados`, `#/admin/intentos/:id` | Resultados y detalle de un intento. |
+
+### Enlace desde otra plataforma (plataforma de talleres)
+
+Para mandar a un estudiante directo a un examen, enlaza a la raíz del sitio con el id del examen (se ve en el editor del examen, *Enlace directo para estudiantes*):
+
+```
+https://TU-DOMINIO/?exam=<id-del-examen>
+```
+
+Si no tiene sesión, pasa por *Ingresar* (o *Crear cuenta*) y después se abre la pantalla de instrucciones de ese examen (`#/examenes/<id>`). El parámetro se limpia de la URL al cargar. Para otras rutas internas existe `?next=%23%2Fresultados` (solo rutas de la propia aplicación; cualquier otra cosa se ignora). Es el mismo origen que la API, así que no hace falta CORS ni tokens; la sesión es la cookie `gl_session`.
+
+## Pruebas
+
+`npm test` ejecuta, además de las pruebas del motor y de la API:
+
+- `server/test/labcore.test.ts`: lógica pura de `src/lab-core.js` (rutas y enlaces profundos, reloj/cuenta regresiva, autoguardado con temporizadores falsos, conversión verificaciones ⇄ API, validación de formularios).
+- `server/test/lab-flow.test.ts`: la página compilada (`public/index.html`) dentro de **jsdom** contra un servidor real (PGlite en memoria). Cubre registro, inicio de sesión, flujo completo del estudiante, flujo del administrador, modo solo práctica sin API y desde `file://`. jsdom no calcula diseño ni se ve en pantalla: lo visual y el uso táctil se deben revisar a mano en un navegador.
+
 ## Estructura
 
 | Ruta | Contenido |
 | --- | --- |
-| `src/` | Código del sitio: `engine.js` (motor sin DOM), `app.js` (interfaz), `style.css`, `body.html`, `template.html`. |
+| `src/` | Código del sitio: `engine.js` (motor sin DOM), `app.js` (simulador), `lab-core.js` (lógica pura del laboratorio), `lab.js` (barra, rutas, acceso, exámenes y examen en curso), `lab-admin.js` (pantallas de administración), `style.css`, `lab.css`, `body.html`, `template.html`. |
 | `scripts/build.mjs` | Genera `index.html`, `public/index.html` y `gridlab.html`. |
 | `server/src/` | API en TypeScript: `auth/`, `attempts/` (alumno), `exercises/` y `exams/` (personal), `grid/` (motor + verificaciones), `db/`, `seed/`. |
 | `server/migrations/` | Migraciones SQL numeradas. |
