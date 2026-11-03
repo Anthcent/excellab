@@ -1252,7 +1252,7 @@ function openMenuFor(btn){
 document.addEventListener('pointerdown', e=>{ if(!pop.hidden && !pop.contains(e.target) && !e.target.closest('[data-menu]')) hidePop(); }, true);
 
 let toastTimer=0;
-function toast(msg){ const t=$('#toast'); t.textContent=msg; t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true, isPhone?2600:3400); }
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.remove('tip'); t.hidden=false; clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.hidden=true, isPhone?2600:3400); }
 $('#toast').addEventListener('click', e=>{ e.currentTarget.hidden=true; });
 
 /* ================= Insert Function dialog ================= */
@@ -1773,7 +1773,7 @@ sel={...(sheet().sel||{ar:0,ac:0,fr:0,fc:0})};
 renderKb();
 applyPhone();
 afterStructure();
-setTimeout(()=>{ if(!labActive) toast(isPhone ? 'Toca una celda dos veces para escribir. Usa = para empezar una fórmula.' : `Consejo: selecciona una celda y escribe = para empezar una fórmula. Los argumentos se separan con "${SEP()}". F4 alterna referencias relativas y absolutas.`); }, 600);
+setTimeout(()=>{ if(!labActive){ toast(isPhone ? 'Toca una celda dos veces para escribir. Usa = para empezar una fórmula.' : `Consejo: selecciona una celda y escribe = para empezar una fórmula. Los argumentos se separan con "${SEP()}". F4 alterna referencias relativas y absolutas.`); $('#toast').classList.add('tip'); } }, 600);
 
 /* ================= Lab integration API (used by lab.js; harmless when unused) ================= */
 window.addEventListener('error', e=>{ if(e.error===RO_BLOCK){ e.preventDefault(); roToast(); } });

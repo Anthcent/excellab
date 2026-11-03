@@ -17,8 +17,9 @@ const css = `${read('src/style.css').trimEnd()}\n${read('src/lab.css').trimEnd()
 const body = read('src/body.html').trimEnd();
 const engine = read('src/engine.js').trimEnd();
 const app = read('src/app.js').trimEnd();
-// Lab UI (login, exams, admin). Order matters: lab-core (pure logic) -> lab (shell, student) -> lab-admin.
-const labFiles = ['lab-core.js', 'lab.js', 'lab-admin.js'].map((name) => [name, read(`src/${name}`).trimEnd()]);
+// Lab UI (login, exams, staff console). Order matters: lab-core (pure logic) -> lab (shell, student) ->
+// lab-staff (console shell and shared helpers) -> lab-admin (exercise editor) -> lab-exam (exam builder).
+const labFiles = ['lab-core.js', 'lab.js', 'lab-staff.js', 'lab-admin.js', 'lab-exam.js'].map((name) => [name, read(`src/${name}`).trimEnd()]);
 const lab = labFiles.map(([, text]) => text).join('\n</script>\n<script>\n');
 for (const [name, text] of [['engine.js', engine], ['app.js', app], ...labFiles]) {
   if (/<\/script/i.test(text)) throw new Error(`${name} contains a closing script tag`);

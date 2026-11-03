@@ -12,9 +12,11 @@ Esta guía explica cómo está construido el simulador y cómo convertir un bot�
 | `src/body.html` | El HTML de la aplicación (cinta, barra de fórmulas, cuadrícula, diálogos). |
 | `src/engine.js` | Motor de fórmulas, **sin DOM**: direcciones, valores, parser, evaluación y biblioteca de funciones. Lo usa el navegador (`window.GridEngine`) y el servidor (para calificar). |
 | `src/app.js` | La interfaz: cuadrícula, edición, cinta, teclado, modo teléfono. Usa el motor. |
-| `src/lab-core.js` | Lógica **pura** del laboratorio (rutas hash, enlaces `?exam=`, reloj del servidor, autoguardado con debounce, verificaciones ⇄ API, validación de formularios). Sin DOM; tiene pruebas en `server/test/labcore.test.ts`. |
-| `src/lab.js` | Interfaz del laboratorio: barra superior, enrutador, ingreso/registro, exámenes, instrucciones y examen en curso. Solo arranca si responde `GET /api/auth/me`. |
-| `src/lab-admin.js` | Pantallas de administración (ejercicios, exámenes, resultados). Se conecta a `window.LabApp`. |
+| `src/lab-core.js` | Lógica **pura** del laboratorio (rutas hash, enlaces `?exam=`, reloj del servidor, autoguardado con debounce, verificaciones ⇄ API, validación de formularios, Markdown-lite, bloques del examen ⇄ API, lista de requisitos, contraseñas, geometría de gráficos). Sin DOM; tiene pruebas en `server/test/labcore.test.ts`. |
+| `src/lab.js` | Interfaz del laboratorio: barra superior, enrutador, ingreso/registro, cambio de contraseña obligatorio y perfil, exámenes, instrucciones, examen en curso (con la pestaña de instrucciones) y revisión. Solo arranca si responde `GET /api/auth/me`. Expone `window.LabApp`. |
+| `src/lab-staff.js` | Consola del personal: barra lateral, panel, usuarios, banco de ejercicios, lista de exámenes, analíticas y resultados. Publica helpers compartidos en `LabApp.ui`. |
+| `src/lab-admin.js` | Editor de ejercicios (con dificultad, etiquetas, minutos y categoría), hoja inicial y detalle de intento. |
+| `src/lab-exam.js` | Constructor de exámenes (pestañas, secciones, banco, sorteo simulado, acceso e intentos extra, lista de requisitos). |
 | `src/lab.css` | Estilos del laboratorio (usa las variables de color del simulador). |
 | `src/template.html` | Plantilla del documento (`doctype`, `<head>`, favicon, metadatos). |
 | `scripts/build.mjs` | Une todo en un solo HTML (ver la sección 10). |
@@ -270,7 +272,7 @@ XI.mi_icono = `<rect x="3" y="3" width="26" height="26" class="p"/><path d="M8 1
 
 ## 10. Compilar y publicar
 
-Edita solo los archivos de `src/` (`style.css`, `lab.css`, `body.html`, `engine.js`, `app.js`, `lab-core.js`, `lab.js`, `lab-admin.js`, `template.html`). Después, dentro de la carpeta `excellab`, ejecuta:
+Edita solo los archivos de `src/` (`style.css`, `lab.css`, `body.html`, `engine.js`, `app.js`, `lab-core.js`, `lab.js`, `lab-staff.js`, `lab-admin.js`, `lab-exam.js`, `template.html`). El orden de los scripts del laboratorio está en `scripts/build.mjs` (`lab-core` → `lab` → `lab-staff` → `lab-admin` → `lab-exam`); si agregas un archivo nuevo, inclúyelo ahí. Después, dentro de la carpeta `excellab`, ejecuta:
 
 ```bash
 npm run build:site     # solo la página (no necesita nada más que Node)
@@ -313,3 +315,22 @@ Buenos candidatos para empezar, de menor a mayor dificultad:
 2. **Inmovilizar fila superior**: con `position: sticky` en la primera fila de datos.
 3. **Insertar fila**: desplaza las celdas hacia abajo y ajusta las referencias de las fórmulas con `shiftFormula` (solo las que apuntan debajo de la fila insertada).
 4. **Formato condicional básico**: una regla por rango, evaluada en `paintCell()`.
+
+## 12. Servidor: roles, bloques y migraciones
+
+El contrato completo de la API (matriz de roles, ajustes del examen y semántica de `resultMode`) está en `README.md`. Lo que conviene saber al tocar el servidor:
+
+- **Roles y propiedad.** `student`, `teacher`, `admin`. Las guardas están en `server/src/http/guards.ts` (`requireUser`, `requireStaff`, `requireAdmin`). El contenido de un profesor se filtra con `ownerScope(user)`: devuelve `undefined` para el admin (sin filtro) y el id del profesor en otro caso; todas las consultas del personal lo aplican y lo ajeno responde 404, nunca 403.
+- **Bloques y sorteo.** La estructura vive en `exam_blocks` y `exam_block_exercises` (`exams/service.ts`: `loadStructure`, `replaceBlocks`, `prepareDraw`). El sorteo puro y determinista por semilla está en `attempts/random.ts` (`drawBlocks`), así que se prueba sin base de datos. Al iniciar un intento se guarda una instantánea (`attempts.exercise_meta`) con el título del bloque y el `points_override` de cada ejercicio; la calificación lee esa instantánea, no la definición actual del examen.
+- **Visibilidad de notas.** Toda respuesta al estudiante que contiene notas pasa por `resultsVisible` y por las banderas de `feedbackMode`/`allowReview` en `attempts/service.ts`. Si agregas un campo con la nota, respeta esas reglas o filtrará información en exámenes `hidden`/`after_close`.
+- **Migraciones.** Aditivas y numeradas: no edites una publicada, agrega `003_…sql`. Cada archivo corre en una transacción y debe funcionar tanto en PGlite como en Postgres (SQL plano, sin extensiones). La prueba «migration 002» de `server/test/exam-builder.test.ts` parte del esquema de la `001` con datos y aplica el resto; haz lo mismo para cada migración que transforme datos.
+- **Pruebas.** `staff.test.ts` (roles, usuarios, aislamiento entre profesores, banco de ejercicios), `exam-builder.test.ts` (bloques, ajustes, migración), `analytics.test.ts` (estadísticas, análisis y CSV), `random.test.ts` (sorteo puro).
+
+## 13. Interfaz del laboratorio: convenciones
+
+- **Sin HTML de usuario.** Todo se construye con `h(tag, props, ...hijos)`: los textos son nodos de texto, nunca `innerHTML`. Las instrucciones de exámenes pasan por `LabCore.parseMarkdownLite` (devuelve *tokens* de solo texto) y `LabApp.renderMd` (los convierte en elementos). No agregues soporte para enlaces o HTML sin revisar esa garantía; hay pruebas de XSS en `labcore.test.ts` y `lab-flow.test.ts`.
+- **Nombres de clases.** `style.css` define clases del simulador con nombres cortos (`.tile`, `.ov`, `.lead`, `.mh`…). Las pantallas del laboratorio usan prefijos propios (`kpi`, `pts-in`, `xlead`, `pm-head`, `st-*`, `xb-*`, `blk-*`); antes de crear una clase genérica, búscala en `style.css`.
+- **Consola del personal.** Cada pantalla llama a `LabApp.ui.staffMain(ctx, clave)`, que dibuja la barra lateral y devuelve la columna principal. Las pantallas que usan el simulador (hoja inicial, detalle de intento, revisión) no llevan barra lateral.
+- **Acceso por ruta.** `access` en `ROUTES` (`lab-core.js`): `public`, `user`, `admin` (= personal: profesor o administrador) y `sysadmin` (solo administrador). El servidor es quien decide; el cliente solo oculta lo que no corresponde.
+- **Pestaña de instrucciones.** `createInstructionsDock(attemptId)` en `lab.js`: elementos `#instrTab` y `#instrCard` en `document.body` mientras dura el intento; clase `is-open` en la pestaña, `aria-expanded`/`aria-controls`, `role="dialog"` con `aria-modal="false"` y preferencia en `sessionStorage` (`gridlab.instr.<intento>`).
+- **Cómo revisar lo visual.** jsdom no calcula diseño: revisa a mano con un navegador a 1280×800 y 390×844 las pantallas que cambies.

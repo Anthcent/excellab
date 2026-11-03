@@ -5,18 +5,13 @@
 'use strict';
 const K = window.LabApp;
 if (!K) return;
-const { h, api, C, Sim, field, applyErrors, badge, notice, loadingBox, failureBox, confirmDialog, infoDialog, withBusy, fmtDate, screens, navigate } = K;
+const { icon, pageHead, emptyBox, h, api, C, Sim, field, applyErrors, badge, notice, loadingBox, failureBox, confirmDialog, infoDialog, withBusy, fmtDate, screens, navigate } = K;
+const U = K.ui;
+const { page, iconBtn, iconLink, secHead, stat, statusBadge, table } = U;
 
 const blankWorkbook = () => ({ name: 'Libro1', sheets: [{ name: 'Hoja1', cells: {}, colW: {}, sel: { ar: 0, ac: 0, fr: 0, fc: 0 } }] });
 const countCells = wb => (wb && wb.sheets ? wb.sheets.reduce((n, s) => n + Object.keys(s.cells || {}).length, 0) : 0);
-const statusBadge = s => badge(C.statusLabel(s), s === 'published' ? 'ok' : 'warn');
-const page = (cls, ...kids) => h('div', { class: 'lab-page' + (cls ? ' ' + cls : '') }, ...kids);
-
-function table(headers, rows, numeric) {
-  return h('div', { class: 'tbl-wrap' }, h('table', { class: 'tbl' },
-    h('thead', null, h('tr', null, headers.map((t, i) => h('th', { class: numeric && numeric.includes(i) ? 'num' : null, text: t })))),
-    h('tbody', null, rows)));
-}
+const checkMark = ok => h('span', { class: 'mark', 'aria-hidden': 'true' }, icon(ok ? 'check' : 'x'));
 
 /** Warns before the page unloads while there are unsaved changes. Returns the remover. */
 function guardUnload(isDirty) {
@@ -25,40 +20,6 @@ function guardUnload(isDirty) {
   return () => window.removeEventListener('beforeunload', fn);
 }
 const confirmLeave = () => confirmDialog({ title: 'Cambios sin guardar', message: 'Tienes cambios sin guardar. Si sales ahora se perderán.', confirmLabel: 'Salir sin guardar', cancelLabel: 'Seguir editando', danger: true });
-
-/* ================= Exercises: list ================= */
-screens.adminHome = async () => { navigate('#/admin/ejercicios', true); };
-
-screens.adminExercises = async ctx => {
-  const root = ctx.root;
-  const load = async () => {
-    root.replaceChildren(loadingBox('Cargando ejercicios…'));
-    let list;
-    try { list = await api.get('/admin/exercises'); } catch (err) { if (!ctx.stale()) root.replaceChildren(page('', failureBox(err, load))); return; }
-    if (ctx.stale()) return;
-    const remove = async ex => {
-      const ok = await confirmDialog({ title: 'Eliminar ejercicio', message: ['¿Eliminar "' + ex.title + '"? No se puede deshacer.'], confirmLabel: 'Eliminar', danger: true });
-      if (!ok) return;
-      try { await api.del('/admin/exercises/' + ex.id); K.Sim.toast('Ejercicio eliminado.'); await load(); }
-      catch (err) { await infoDialog('No se pudo eliminar', C.errorMessage(err)); }
-    };
-    root.replaceChildren(page('',
-      h('div', { class: 'lab-head' }, h('h1', { text: 'Ejercicios' }), h('a', { class: 'lb-btn primary', href: '#/admin/ejercicios/nuevo', text: 'Nuevo ejercicio' })),
-      list.length ? table(['Título', 'Puntos', 'Estado', 'Verificaciones', 'Uso', 'Actualizado', ''], list.map(ex => h('tr', null,
-        h('td', null, h('a', { href: '#/admin/ejercicios/' + ex.id, text: ex.title })),
-        h('td', { class: 'num', text: C.formatNumber(ex.points) }),
-        h('td', null, statusBadge(ex.status)),
-        h('td', { class: 'num', text: String(ex.checkCount) }),
-        h('td', null, ex.examCount ? badge('En ' + ex.examCount + (ex.examCount === 1 ? ' examen' : ' exámenes'), 'info') : h('span', { class: 'muted', text: 'Sin usar' })),
-        h('td', { class: 'nowrap', text: fmtDate(ex.updatedAt) }),
-        h('td', null, h('div', { class: 'actions' },
-          h('a', { class: 'lb-btn sm', href: '#/admin/ejercicios/' + ex.id, text: 'Editar' }),
-          h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Eliminar ' + ex.title, onclick: () => remove(ex), text: 'Eliminar' }))))), [1, 3])
-        : h('div', { class: 'card state' }, h('p', { text: 'Todavía no hay ejercicios.' }), h('a', { class: 'lb-btn primary', href: '#/admin/ejercicios/nuevo', text: 'Crear el primero' })),
-      list.some(e => e.examCount) ? h('p', { class: 'small muted', text: 'Los ejercicios que ya se usaron en intentos de estudiantes no se pueden eliminar; despublícalos si ya no deben salir.' }) : null));
-  };
-  await load();
-};
 
 /* ================= Exercises: editor (form + sheet share one draft) ================= */
 let exDraft = null;   // { key, id, form, rows, workbook, baseForm, baseWb, keep }
@@ -69,7 +30,7 @@ const draftDirty = d => !!d && (draftFormKey(d) !== d.baseForm || C.workbookKey(
 function draftFromApi(ex) {
   const d = {
     key: ex.id, id: ex.id,
-    form: { title: ex.title, instructions: ex.instructions, points: String(ex.points), status: ex.status },
+    form: { title: ex.title, instructions: ex.instructions, points: String(ex.points), status: ex.status, difficulty: ex.difficulty || 'medium', tags: ex.tags || [], estimatedMinutes: ex.estimatedMinutes == null ? '' : String(ex.estimatedMinutes), category: ex.category || '' },
     rows: (ex.checks || []).map(C.checkToRow),
     workbook: ex.workbook, keep: false,
   };
@@ -77,7 +38,7 @@ function draftFromApi(ex) {
   return d;
 }
 function draftNew() {
-  const d = { key: 'new', id: null, form: { title: '', instructions: '', points: '10', status: 'draft' }, rows: [], workbook: blankWorkbook(), keep: false };
+  const d = { key: 'new', id: null, form: { title: '', instructions: '', points: '10', status: 'draft', difficulty: 'medium', tags: [], estimatedMinutes: '', category: '' }, rows: [], workbook: blankWorkbook(), keep: false };
   d.baseForm = draftFormKey(d); d.baseWb = C.workbookKey(d.workbook);
   return d;
 }
@@ -125,17 +86,49 @@ function checkRowEditor(d, i, rowErrors, rerender) {
     bind(field('Valores esperados', 'textarea', { value: row.matrix, rows: 4, hint: 'Una fila por línea; celdas separadas por ; o tabulador (puedes pegar desde Excel).' }), 'matrix').wrap,
     bind(field('Ignorar mayúsculas y minúsculas', 'check', { value: row.ignoreCase }), 'ignoreCase', true).wrap);
   }
+  const typeInfo = C.CHECK_TYPES.find(t => t.value === row.type);
   return h('div', { class: 'check-row', role: 'group', 'aria-label': 'Verificación ' + (i + 1) },
     h('div', { class: 'head' },
+      h('span', { class: 'num', 'aria-hidden': 'true', text: String(i + 1) }),
       h('strong', { text: 'Verificación ' + (i + 1) }),
-      h('button', { class: 'lb-btn sm', type: 'button', onclick: () => { d.rows.splice(i + 1, 0, { ...row }); rerender(); }, text: 'Duplicar' }),
-      h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Quitar verificación ' + (i + 1), onclick: () => { d.rows.splice(i, 1); rerender(); }, text: 'Quitar' })),
+      h('span', { class: 'chip', text: typeInfo ? typeInfo.label : row.type }),
+      h('span', { class: 'xfill' }),
+      h('button', { class: 'lb-btn sm ghost', type: 'button', onclick: () => { d.rows.splice(i + 1, 0, { ...row }); rerender(); } }, icon('copy'), 'Duplicar'),
+      h('button', { class: 'lb-btn sm ghost danger', type: 'button', 'aria-label': 'Quitar verificación ' + (i + 1), onclick: () => { d.rows.splice(i, 1); rerender(); } }, icon('trash'), 'Quitar')),
     h('div', { class: 'lb-row' }, typeSel.wrap, points.wrap, label.wrap),
     sheetF.wrap, parts);
 }
 
+/** Token input for tags: Enter or comma adds, Backspace on empty removes the last one. */
+function tagEditor(d, onChange) {
+  const input = h('input', { type: 'text', id: 'tagInput', maxlength: 40, placeholder: 'Escribe y pulsa Enter', 'aria-describedby': 'tagHint' });
+  const chips = h('span', { class: 'tag-list' });
+  const msg = h('div', { class: 'err', hidden: true });
+  const box = h('div', { class: 'tag-box' }, chips, input);
+  const render = () => {
+    chips.replaceChildren(...d.form.tags.map((t, i) => h('span', { class: 'tag removable' }, t,
+      h('button', { type: 'button', 'aria-label': 'Quitar etiqueta ' + t, onclick: () => { d.form.tags.splice(i, 1); render(); onChange(); input.focus(); } }, icon('x')))));
+  };
+  const add = () => {
+    const r = C.addTag(d.form.tags, input.value);
+    msg.hidden = !r.reason; msg.textContent = r.reason;
+    if (r.added) { d.form.tags = r.tags; render(); onChange(); }
+    if (r.added || !r.reason) input.value = '';
+  };
+  input.addEventListener('keydown', e => {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); add(); }
+    else if (e.key === 'Backspace' && !input.value && d.form.tags.length) { d.form.tags.pop(); render(); onChange(); }
+  });
+  input.addEventListener('blur', () => { if (input.value.trim()) add(); });
+  render();
+  return h('div', { class: 'lb-field' },
+    h('label', { for: 'tagInput', text: 'Etiquetas' }), box,
+    h('div', { class: 'hint', id: 'tagHint', text: 'Hasta 10, en minúsculas. Ayudan a buscar el ejercicio al armar exámenes.' }), msg);
+}
+
 async function exerciseFormScreen(ctx, id) {
-  const root = ctx.root;
+  const main = U.staffMain(ctx, 'exercises');
+  const root = { replaceChildren: (...n) => main.replaceChildren(...n) };
   let d;
   try { d = await ensureDraft(id); } catch (err) {
     root.replaceChildren(page('mid', failureBox(err, err.status === 404 ? null : () => K.route()), h('p', { class: 'state' }, h('a', { class: 'lb-btn', href: '#/admin/ejercicios', text: 'Volver a ejercicios' }))));
@@ -150,20 +143,26 @@ async function exerciseFormScreen(ctx, id) {
     points: field('Puntos del ejercicio', 'input', { value: d.form.points, inputmode: 'decimal', required: true }),
     status: field('Estado', 'select', { value: d.form.status, options: [{ value: 'draft', label: 'Borrador' }, { value: 'published', label: 'Publicado' }], hint: 'Solo los ejercicios publicados se pueden usar en exámenes.' }),
     instructions: field('Instrucciones para el estudiante', 'textarea', { value: d.form.instructions, rows: 5 }),
+    difficulty: field('Dificultad', 'select', { value: d.form.difficulty, options: C.DIFFICULTIES }),
+    estimatedMinutes: field('Minutos estimados', 'input', { value: d.form.estimatedMinutes, inputmode: 'numeric', hint: 'Opcional.' }),
+    category: field('Categoría', 'input', { value: d.form.category, maxlength: 60, hint: 'Opcional, por ejemplo "Funciones lógicas".' }),
   };
-  for (const k of Object.keys(f)) f[k].input.addEventListener('input', () => { d.form[k] = f[k].input.value; });
-  f.status.input.addEventListener('change', () => { d.form.status = f.status.input.value; });
+  for (const k of Object.keys(f)) {
+    f[k].input.addEventListener('input', () => { d.form[k] = f[k].input.value; });
+    f[k].input.addEventListener('change', () => { d.form[k] = f[k].input.value; });
+  }
+  const tags = tagEditor(d, () => {});
 
   const checksBox = h('div');
   const summary = h('div', { 'aria-live': 'polite' });
   const renderChecks = () => {
     checksBox.replaceChildren(...(d.rows.length
       ? d.rows.map((_, i) => checkRowEditor(d, i, rowErrors, renderChecks))
-      : [h('p', { class: 'muted', text: 'Aún no hay verificaciones. Agrega al menos una para poder publicar el ejercicio.' })]));
+      : [h('div', { class: 'empty-inline' }, icon('list'), h('p', { class: 'muted', text: 'Aún no hay verificaciones. Agrega al menos una para poder publicar el ejercicio.' }))]));
   };
   renderChecks();
   const addType = field('Tipo de verificación', 'select', { options: C.CHECK_TYPES });
-  const addBtn = h('button', { class: 'lb-btn', type: 'button', text: 'Agregar verificación', onclick: () => { d.rows.push(C.blankCheckRow(addType.input.value)); rowErrors = {}; renderChecks(); const last = checksBox.lastElementChild; if (last) { const i = last.querySelector('input'); if (i) i.focus(); } } });
+  const addBtn = h('button', { class: 'lb-btn', type: 'button', onclick: () => { d.rows.push(C.blankCheckRow(addType.input.value)); rowErrors = {}; renderChecks(); const last = checksBox.lastElementChild; if (last) { const i = last.querySelector('input'); if (i) i.focus(); } } }, icon('plus'), 'Agregar verificación');
 
   const saveBtn = h('button', { class: 'lb-btn primary', type: 'submit', text: d.id ? 'Guardar cambios' : 'Crear ejercicio' });
   const form = h('form', { novalidate: true, 'aria-label': 'Ejercicio' });
@@ -218,20 +217,27 @@ async function exerciseFormScreen(ctx, id) {
   };
 
   form.append(
-    h('div', { class: 'card' }, h('h2', { text: 'Datos del ejercicio' }), f.title.wrap, h('div', { class: 'lb-row' }, f.points.wrap, f.status.wrap), f.instructions.wrap),
-    h('div', { class: 'card' }, h('h2', { text: 'Hoja inicial' }),
-      h('p', { class: 'muted', text: d.workbook.sheets.length + (d.workbook.sheets.length === 1 ? ' hoja' : ' hojas') + ' · ' + countCells(d.workbook) + ' celdas con datos' + (C.workbookKey(d.workbook) !== d.baseWb ? ' · cambios sin guardar' : '') }),
-      h('p', { class: 'small muted', text: 'Edita la hoja dentro del simulador real. Allí también puedes probar la calificación con una respuesta de ejemplo.' }),
-      h('a', { class: 'lb-btn', href: sheetHash(d), text: 'Editar hoja inicial' })),
-    h('div', { class: 'card' }, h('h2', { text: 'Verificaciones' }),
-      h('p', { class: 'small muted', text: 'Los puntos de cada verificación se reparten proporcionalmente al total de puntos del ejercicio.' }),
+    h('div', { class: 'card' }, secHead('fileText', 'Datos del ejercicio', 'Lo que verá el estudiante y cuántos puntos vale.'), f.title.wrap, h('div', { class: 'lb-row' }, f.points.wrap, f.status.wrap), f.instructions.wrap),
+    h('div', { class: 'card' }, secHead('tag', 'Clasificación', 'Para encontrar y reutilizar el ejercicio en el banco.'),
+      h('div', { class: 'lb-row' }, f.difficulty.wrap, f.estimatedMinutes.wrap, f.category.wrap), tags),
+    h('div', { class: 'card' }, secHead('grid', 'Hoja inicial', 'El libro con el que arranca el estudiante.'),
+      h('div', { class: 'chips' },
+        h('span', { class: 'chip', text: d.workbook.sheets.length + (d.workbook.sheets.length === 1 ? ' hoja' : ' hojas') + ' · ' + countCells(d.workbook) + ' celdas con datos' }),
+        C.workbookKey(d.workbook) !== d.baseWb ? badge('Cambios sin guardar', 'warn') : null),
+      h('p', { class: 'small muted', style: 'margin-top:10px', text: 'Edita la hoja dentro del simulador real. Allí también puedes probar la calificación con una respuesta de ejemplo.' }),
+      h('a', { class: 'lb-btn', href: sheetHash(d) }, icon('grid'), 'Editar hoja inicial')),
+    h('div', { class: 'card' }, secHead('check', 'Verificaciones', 'Los puntos de cada verificación se reparten proporcionalmente al total de puntos del ejercicio.'),
       checksBox,
-      h('div', { class: 'lb-row', style: 'align-items:flex-end' }, addType.wrap, h('div', { class: 'lb-field' }, addBtn))),
+      h('div', { class: 'add-check' }, addType.wrap, h('div', { class: 'lb-field' }, addBtn))),
     summary,
-    h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px' },
+    h('div', { class: 'form-actions' },
       saveBtn,
       h('a', { class: 'lb-btn', href: '#/admin/ejercicios', text: 'Volver' }),
-      d.id ? h('button', { class: 'lb-btn danger', type: 'button', onclick: remove, text: 'Eliminar' }) : null));
+      d.id ? h('button', { class: 'lb-btn ghost', type: 'button', onclick: async () => {
+        try { const c = await api.post('/admin/exercises/' + d.id + '/duplicate'); exDraft = null; Sim.toast('Copia creada como borrador.'); navigate('#/admin/ejercicios/' + c.id); }
+        catch (err) { await infoDialog('No se pudo duplicar', C.errorMessage(err)); }
+      } }, icon('copy'), 'Duplicar') : null,
+      d.id ? h('button', { class: 'lb-btn danger push', type: 'button', onclick: remove }, icon('trash'), 'Eliminar') : null));
 
   root.replaceChildren(page('mid', h('div', { class: 'lab-head' }, h('h1', { text: d.id ? 'Editar ejercicio' : 'Nuevo ejercicio' })), form));
   return {
@@ -250,8 +256,8 @@ function previewList(out) {
   return h('div', null,
     h('p', null, h('strong', { text: 'Puntaje de la prueba: ' + C.formatNumber(out.score) + ' / ' + C.formatNumber(out.maxScore) })),
     h('ul', { class: 'checks' }, out.results.map(r => h('li', { class: r.passed ? 'pass' : 'fail' },
-      h('span', { class: 'mark', 'aria-hidden': 'true', text: r.passed ? '✓' : '✗' }),
-      h('span', null, r.label, h('span', { class: 'small muted', text: ' · ' + (r.ref || '') + (r.actual !== undefined ? ' obtuvo "' + r.actual + '"' : '') }), h('span', { class: 'sr-only', text: r.passed ? ' (correcto)' : ' (incorrecto)' })),
+      checkMark(r.passed),
+      h('span', { class: 'ct' }, r.label, h('span', { class: 'small muted', text: ' · ' + (r.ref || '') + (r.actual !== undefined ? ' obtuvo "' + r.actual + '"' : '') }), h('span', { class: 'sr-only', text: r.passed ? ' (correcto)' : ' (incorrecto)' })),
       h('span', { class: 'pts', text: C.formatNumber(r.earned) + ' / ' + C.formatNumber(r.points) })))));
 }
 
@@ -264,10 +270,10 @@ async function exerciseSheetScreen(ctx, id) {
   }
   if (ctx.stale()) return {};
   const removeUnload = guardUnload(() => C.workbookKey(Sim.getWorkbook()) !== d.baseWb);
-  const panel = h('div', { class: 'panel', hidden: true, 'aria-live': 'polite' });
+  const panel = h('div', { class: 'rn-panel', hidden: true, 'aria-live': 'polite' });
   const grab = () => { d.workbook = Sim.getWorkbook(); return d.workbook; };
 
-  const saveBtn = h('button', { class: 'lb-btn sm primary', type: 'button', text: 'Guardar hoja' });
+  const saveBtn = h('button', { class: 'lb-btn sm primary', type: 'button' }, 'Guardar hoja');
   saveBtn.addEventListener('click', () => withBusy(saveBtn, async () => {
     const wb = grab();
     if (!d.id) { Sim.toast('La hoja se guardará junto con el ejercicio.'); return; }
@@ -278,7 +284,7 @@ async function exerciseSheetScreen(ctx, id) {
     } catch (err) { await infoDialog('No se pudo guardar la hoja', C.errorMessage(err)); }
   }));
 
-  const testBtn = h('button', { class: 'lb-btn sm', type: 'button', text: 'Probar calificación', title: d.id ? 'Califica la hoja actual como si fuera la respuesta de un estudiante' : 'Guarda el ejercicio primero para poder probar la calificación' });
+  const testBtn = h('button', { class: 'lb-btn sm', type: 'button', title: d.id ? 'Califica la hoja actual como si fuera la respuesta de un estudiante' : 'Guarda el ejercicio primero para poder probar la calificación' }, 'Probar calificación');
   if (!d.id) testBtn.disabled = true;
   testBtn.addEventListener('click', () => withBusy(testBtn, async () => {
     const wb = grab();
@@ -298,12 +304,10 @@ async function exerciseSheetScreen(ctx, id) {
     K.measure();
   }));
 
-  const strip = h('div', null,
-    h('div', { class: 'row' },
-      h('span', { class: 'title', text: 'Hoja inicial: ' + (d.form.title || 'Nuevo ejercicio') }),
-      h('span', { class: 'spacer' }), saveBtn, testBtn,
-      h('a', { class: 'lb-btn sm', href: formHash(d), text: 'Volver al formulario' })),
-    h('p', { class: 'small muted', style: 'margin:4px 0 0', text: 'Edita la hoja como quieras. "Probar calificación" usa la hoja actual como respuesta de un estudiante.' }),
+  const strip = h('div', { class: 'rn rn-sheet' },
+    h('div', { class: 'rn-id' }, h('span', { class: 'title', text: 'Hoja inicial: ' + (d.form.title || 'Nuevo ejercicio') })),
+    h('div', { class: 'rn-act' }, saveBtn, testBtn, h('a', { class: 'lb-btn sm', href: formHash(d) }, icon('arrowLeft'), 'Volver al formulario')),
+    h('p', { class: 'rn-tip small muted', text: 'Edita la hoja como quieras. "Probar calificación" usa la hoja actual como respuesta de un estudiante.' }),
     panel);
   root.replaceChildren();
   K.showSim(strip);
@@ -321,252 +325,6 @@ async function exerciseSheetScreen(ctx, id) {
 screens.adminExerciseNewSheet = ctx => exerciseSheetScreen(ctx, null);
 screens.adminExerciseSheet = ctx => exerciseSheetScreen(ctx, ctx.params.id);
 
-/* ================= Exams: list ================= */
-screens.adminExams = async ctx => {
-  const root = ctx.root;
-  const load = async () => {
-    root.replaceChildren(loadingBox('Cargando exámenes…'));
-    let list;
-    try { list = await api.get('/admin/exams'); } catch (err) { if (!ctx.stale()) root.replaceChildren(page('', failureBox(err, load))); return; }
-    if (ctx.stale()) return;
-    const toggle = async (ex, btn) => withBusy(btn, async () => {
-      try { await api.put('/admin/exams/' + ex.id, { status: ex.status === 'published' ? 'draft' : 'published' }); await load(); }
-      catch (err) { await infoDialog(ex.status === 'published' ? 'No se pudo despublicar' : 'No se pudo publicar', C.errorMessage(err)); }
-    });
-    const remove = async ex => {
-      const ok = await confirmDialog({ title: 'Eliminar examen', message: ['¿Eliminar "' + ex.title + '"? No se puede deshacer.'], confirmLabel: 'Eliminar', danger: true });
-      if (!ok) return;
-      try { await api.del('/admin/exams/' + ex.id); Sim.toast('Examen eliminado.'); await load(); }
-      catch (err) { await infoDialog('No se pudo eliminar', C.errorMessage(err)); }
-    };
-    root.replaceChildren(page('',
-      h('div', { class: 'lab-head' }, h('h1', { text: 'Exámenes' }), h('a', { class: 'lb-btn primary', href: '#/admin/examenes/nuevo', text: 'Nuevo examen' })),
-      list.length ? table(['Título', 'Estado', 'Duración', 'Ejercicios', 'Intentos', 'Disponibilidad', ''], list.map(ex => {
-        const tbtn = h('button', { class: 'lb-btn sm', type: 'button', text: ex.status === 'published' ? 'Despublicar' : 'Publicar' });
-        tbtn.addEventListener('click', () => toggle(ex, tbtn));
-        return h('tr', null,
-          h('td', null, h('a', { href: '#/admin/examenes/' + ex.id, text: ex.title })),
-          h('td', null, statusBadge(ex.status)),
-          h('td', { class: 'num', text: ex.durationMinutes + ' min' }),
-          h('td', { class: 'num', text: String(ex.exerciseCount) }),
-          h('td', { class: 'num', text: String(ex.attemptCount) }),
-          h('td', { class: 'small', text: ex.availableFrom || ex.availableUntil ? (ex.availableFrom ? fmtDate(ex.availableFrom) : 'siempre') + ' → ' + (ex.availableUntil ? fmtDate(ex.availableUntil) : 'sin cierre') : 'Siempre' }),
-          h('td', null, h('div', { class: 'actions' },
-            h('a', { class: 'lb-btn sm', href: '#/admin/examenes/' + ex.id, text: 'Editar' }), tbtn,
-            h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Eliminar ' + ex.title, onclick: () => remove(ex), text: 'Eliminar' }))));
-      }), [2, 3, 4]) : h('div', { class: 'card state' }, h('p', { text: 'Todavía no hay exámenes.' }), h('a', { class: 'lb-btn primary', href: '#/admin/examenes/nuevo', text: 'Crear el primero' }))));
-  };
-  await load();
-};
-
-/* ================= Exams: editor ================= */
-async function examEditor(ctx, id) {
-  const root = ctx.root;
-  const flash = K.state.flash; K.state.flash = '';
-  let exam = null, exercises;
-  try {
-    const [list, detail] = await Promise.all([api.get('/admin/exercises'), id ? api.get('/admin/exams/' + id) : null]);
-    exercises = list; exam = detail;
-  } catch (err) {
-    root.replaceChildren(page('mid', failureBox(err, err.status === 404 ? null : () => K.route()), h('p', { class: 'state' }, h('a', { class: 'lb-btn', href: '#/admin/examenes', text: 'Volver a exámenes' }))));
-    return {};
-  }
-  if (ctx.stale()) return {};
-
-  const form = exam ? C.examToForm(exam) : C.examToForm({ title: '', instructions: '', status: 'draft' });
-  let picked = exam ? exam.exercises.map(e => ({ id: e.id, title: e.title, points: e.points, status: e.status })) : [];
-  const baseline = () => JSON.stringify({ form, ids: picked.map(p => p.id) });
-  let base = baseline();
-  const removeUnload = guardUnload(() => baseline() !== base);
-
-  const f = {
-    title: field('Título', 'input', { value: form.title, maxlength: 200, required: true }),
-    instructions: field('Instrucciones para el estudiante', 'textarea', { value: form.instructions, rows: 6 }),
-    durationMinutes: field('Duración (minutos)', 'input', { value: form.durationMinutes, inputmode: 'numeric', required: true }),
-    maxAttempts: field('Intentos máximos', 'input', { value: form.maxAttempts, inputmode: 'numeric', required: true }),
-    pickCount: field('Ejercicios por intento', 'input', { value: form.pickCount, inputmode: 'numeric', hint: 'Vacío = todos los ejercicios del examen, en orden aleatorio.' }),
-    scale: field('Escala de la nota', 'input', { value: form.scale, inputmode: 'decimal', hint: 'Por ejemplo 20 o 10.' }),
-    passPercent: field('Porcentaje para aprobar', 'input', { value: form.passPercent, inputmode: 'decimal' }),
-    gradePolicy: field('Nota del examen', 'select', { value: form.gradePolicy, options: [{ value: 'best', label: 'Mejor intento' }, { value: 'last', label: 'Último intento' }] }),
-    status: field('Estado', 'select', { value: form.status, options: [{ value: 'draft', label: 'Borrador' }, { value: 'published', label: 'Publicado' }], hint: 'Publicar exige al menos un ejercicio.' }),
-    availableFrom: field('Disponible desde', 'input', { type: 'datetime-local', value: form.availableFrom, hint: 'Opcional.' }),
-    availableUntil: field('Disponible hasta', 'input', { type: 'datetime-local', value: form.availableUntil, hint: 'Opcional.' }),
-  };
-  for (const k of Object.keys(f)) {
-    f[k].input.addEventListener('input', () => { form[k] = f[k].input.value; });
-    f[k].input.addEventListener('change', () => { form[k] = f[k].input.value; });
-  }
-
-  const pickedBox = h('ol', { 'aria-label': 'Ejercicios del examen' });
-  const availBox = h('ul', { 'aria-label': 'Ejercicios disponibles' });
-  const renderPicker = () => {
-    const ids = new Set(picked.map(p => p.id));
-    pickedBox.replaceChildren(...(picked.length ? picked.map((p, i) => h('li', { class: p.status !== 'published' ? 'off' : null },
-      h('span', { class: 't' }, (i + 1) + '. ' + p.title + ' ', h('span', { class: 'small muted', text: '(' + C.formatNumber(p.points) + ' pts)' }), p.status !== 'published' ? badge('Borrador', 'warn') : null),
-      h('button', { class: 'lb-btn sm', type: 'button', 'aria-label': 'Subir ' + p.title, disabled: i === 0, onclick: () => { picked = C.moveItem(picked, i, i - 1); renderPicker(); focusItem(i - 1, 'Subir'); }, text: '↑' }),
-      h('button', { class: 'lb-btn sm', type: 'button', 'aria-label': 'Bajar ' + p.title, disabled: i === picked.length - 1, onclick: () => { picked = C.moveItem(picked, i, i + 1); renderPicker(); focusItem(i + 1, 'Bajar'); }, text: '↓' }),
-      h('button', { class: 'lb-btn sm danger', type: 'button', 'aria-label': 'Quitar ' + p.title, onclick: () => { picked.splice(i, 1); renderPicker(); }, text: 'Quitar' })))
-      : [h('li', { class: 'muted', text: 'Aún no agregaste ejercicios.' })]));
-    const avail = exercises.filter(e => !ids.has(e.id));
-    availBox.replaceChildren(...(avail.length ? avail.map(e => h('li', { class: e.status !== 'published' ? 'off' : null },
-      h('span', { class: 't' }, e.title + ' ', h('span', { class: 'small muted', text: '(' + C.formatNumber(e.points) + ' pts)' }), e.status !== 'published' ? badge('Borrador: publícalo para usarlo', 'warn') : null),
-      h('button', { class: 'lb-btn sm', type: 'button', disabled: e.status !== 'published', 'aria-label': 'Agregar ' + e.title, onclick: () => { picked.push({ id: e.id, title: e.title, points: e.points, status: e.status }); renderPicker(); }, text: 'Agregar' })))
-      : [h('li', { class: 'muted', text: 'No quedan ejercicios por agregar.' })]));
-  };
-  const focusItem = (i, what) => { const li = pickedBox.children[i]; const b = li && [...li.querySelectorAll('button')].find(x => (x.getAttribute('aria-label') || '').startsWith(what)); if (b && !b.disabled) b.focus(); };
-  renderPicker();
-
-  const summary = h('div', { 'aria-live': 'polite' });
-  if (flash) summary.append(notice('error', flash));
-  const saveBtn = h('button', { class: 'lb-btn primary', type: 'submit', text: id ? 'Guardar cambios' : 'Crear examen' });
-  const form_ = h('form', { novalidate: true, 'aria-label': 'Examen' });
-
-  form_.addEventListener('submit', async e => {
-    e.preventDefault();
-    summary.replaceChildren();
-    const first = applyErrors(f, C.validateExamForm(form));
-    if (first) { summary.append(notice('error', 'Revisa los campos marcados.')); first.input.focus(); return; }
-    if (form.status === 'published' && !picked.length) { f.status.setError('Un examen publicado necesita al menos un ejercicio.'); f.status.input.focus(); summary.append(notice('error', 'Agrega al menos un ejercicio antes de publicar.')); return; }
-    const payload = C.examFormToPayload(form);
-    const ids = picked.map(p => p.id);
-    await withBusy(saveBtn, async () => {
-      let createdId = null;
-      try {
-        if (!id) {
-          const created = await api.post('/admin/exams', { ...payload, status: 'draft' });
-          createdId = created.id;
-          await api.put('/admin/exams/' + createdId + '/exercises', { exerciseIds: ids });
-          if (payload.status === 'published') await api.put('/admin/exams/' + createdId, { status: 'published' });
-          Sim.toast('Examen creado.');
-          base = baseline();
-          navigate('#/admin/examenes/' + createdId, true);
-        } else {
-          if (payload.status === 'published') {
-            await api.put('/admin/exams/' + id + '/exercises', { exerciseIds: ids });
-            await api.put('/admin/exams/' + id, payload);
-          } else {
-            await api.put('/admin/exams/' + id, payload);
-            await api.put('/admin/exams/' + id + '/exercises', { exerciseIds: ids });
-          }
-          Sim.toast('Examen guardado.');
-          base = baseline();
-          navigate('#/admin/examenes/' + id, true);
-        }
-      } catch (err) {
-        if (createdId) {
-          // The exam exists as a draft but a later step failed: continue on its edit page with the reason.
-          K.state.flash = 'El examen se creó como borrador, pero no se pudo completar: ' + C.errorMessage(err);
-          base = baseline();
-          navigate('#/admin/examenes/' + createdId, true);
-          return;
-        }
-        const map = {};
-        (err.fields || []).forEach(p => { map[p] = 'Valor no válido.'; });
-        applyErrors(f, map);
-        summary.replaceChildren(notice('error', C.errorMessage(err)));
-      }
-    });
-  });
-
-  const togglePublish = h('button', { class: 'lb-btn', type: 'button', text: exam && exam.status === 'published' ? 'Despublicar' : 'Publicar ahora' });
-  togglePublish.addEventListener('click', () => withBusy(togglePublish, async () => {
-    summary.replaceChildren();
-    try {
-      await api.put('/admin/exams/' + id, { status: exam.status === 'published' ? 'draft' : 'published' });
-      Sim.toast('Estado actualizado.');
-      K.route();
-    } catch (err) { summary.replaceChildren(notice('error', C.errorMessage(err))); }
-  }));
-  const remove = async () => {
-    const ok = await confirmDialog({ title: 'Eliminar examen', message: ['¿Eliminar "' + form.title + '"? No se puede deshacer.'], confirmLabel: 'Eliminar', danger: true });
-    if (!ok) return;
-    try { await api.del('/admin/exams/' + id); base = baseline(); Sim.toast('Examen eliminado.'); navigate('#/admin/examenes'); }
-    catch (err) { await infoDialog('No se pudo eliminar', C.errorMessage(err)); }
-  };
-
-  form_.append(
-    h('div', { class: 'card' }, h('h2', { text: 'Datos del examen' }), f.title.wrap, f.instructions.wrap,
-      h('div', { class: 'lb-row' }, f.durationMinutes.wrap, f.maxAttempts.wrap, f.pickCount.wrap),
-      h('div', { class: 'lb-row' }, f.scale.wrap, f.passPercent.wrap, f.gradePolicy.wrap),
-      h('div', { class: 'lb-row' }, f.status.wrap, f.availableFrom.wrap, f.availableUntil.wrap)),
-    h('div', { class: 'card' }, h('h2', { text: 'Ejercicios' }),
-      h('p', { class: 'small muted', text: 'El orden de la lista se usa como referencia; en cada intento se sortean al azar. Solo se pueden agregar ejercicios publicados.' }),
-      h('div', { class: 'picker' },
-        h('div', null, h('h3', { text: 'En este examen' }), pickedBox),
-        h('div', null, h('h3', { text: 'Disponibles' }), availBox))),
-    summary,
-    h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap;margin-top:12px' },
-      saveBtn,
-      id ? togglePublish : null,
-      h('a', { class: 'lb-btn', href: '#/admin/examenes', text: 'Volver' }),
-      id ? h('button', { class: 'lb-btn danger', type: 'button', onclick: remove, text: 'Eliminar' }) : null));
-
-  root.replaceChildren(page('mid',
-    h('div', { class: 'lab-head' }, h('h1', { text: id ? 'Editar examen' : 'Nuevo examen' }), exam ? statusBadge(exam.status) : null),
-    id ? h('p', { class: 'small muted' }, 'Enlace directo para estudiantes: ', h('code', { text: location.origin + location.pathname + '?exam=' + id })) : null,
-    form_));
-  return {
-    async leave() { return baseline() !== base ? confirmLeave() : true; },
-    destroy() { removeUnload(); },
-  };
-}
-screens.adminExamNew = ctx => examEditor(ctx, null);
-screens.adminExam = ctx => examEditor(ctx, ctx.params.id);
-
-/* ================= Results ================= */
-screens.adminResults = async ctx => {
-  const root = ctx.root;
-  const filters = { examId: ctx.query.examId || '', userId: ctx.query.userId || '' };
-  let all, exams;
-  try {
-    [all, exams] = await Promise.all([api.get('/admin/results'), api.get('/admin/exams')]);
-  } catch (err) { root.replaceChildren(page('', failureBox(err, () => K.route()))); return {}; }
-  if (ctx.stale()) return {};
-  const students = [...new Map(all.summary.map(s => [s.userId, s])).values()].sort((a, b) => a.userName.localeCompare(b.userName, 'es'));
-
-  const examSel = field('Examen', 'select', { value: filters.examId, options: [{ value: '', label: 'Todos los exámenes' }, ...exams.map(e => ({ value: e.id, label: e.title }))] });
-  const userSel = field('Estudiante', 'select', { value: filters.userId, options: [{ value: '', label: 'Todos los estudiantes' }, ...students.map(s => ({ value: s.userId, label: s.userName + ' (' + s.userEmail + ')' }))] });
-  const out = h('div', { 'aria-live': 'polite' });
-
-  const load = async () => {
-    out.replaceChildren(loadingBox('Cargando resultados…'));
-    const qs = new URLSearchParams();
-    if (filters.examId) qs.set('examId', filters.examId);
-    if (filters.userId) qs.set('userId', filters.userId);
-    history.replaceState(null, '', location.pathname + location.search + '#/admin/resultados' + (qs.toString() ? '?' + qs : ''));
-    let data;
-    try { data = await api.get('/admin/results' + (qs.toString() ? '?' + qs : '')); } catch (err) { if (!ctx.stale()) out.replaceChildren(failureBox(err, load)); return; }
-    if (ctx.stale()) return;
-    out.replaceChildren(
-      h('h2', { text: 'Resultado por estudiante y examen' }),
-      data.summary.length ? table(['Estudiante', 'Examen', 'Intentos', 'Resultado que cuenta', 'Estado'], data.summary.map(s => h('tr', null,
-        h('td', null, s.userName, h('div', { class: 'small muted', text: s.userEmail })),
-        h('td', { text: s.examTitle }),
-        h('td', { class: 'num', text: String(s.attemptsUsed) }),
-        h('td', { class: 'num', text: s.result ? C.formatGrade(s.result.grade, s.scale) + ' · ' + C.formatPercent(s.result.scorePercent) : '-' }),
-        h('td', null, s.result ? badge(s.result.passed ? 'Aprobado' : 'Reprobado', s.result.passed ? 'ok' : 'bad') : badge('Sin calificar'))))) : h('div', { class: 'card state', text: 'No hay resultados con estos filtros.' }),
-      h('h2', { style: 'margin-top:18px', text: 'Intentos' }),
-      data.attempts.length ? table(['Estudiante', 'Examen', 'Intento', 'Estado', '%', 'Nota', 'Inicio', 'Envío', ''], data.attempts.map(a => h('tr', null,
-        h('td', null, a.userName, h('div', { class: 'small muted', text: a.userEmail })),
-        h('td', { text: a.examTitle }),
-        h('td', { class: 'num', text: String(a.number) }),
-        h('td', null, badge(C.statusLabel(a.status), a.status === 'in_progress' ? 'info' : '')),
-        h('td', { class: 'num', text: a.status === 'in_progress' ? '-' : C.formatPercent(a.scorePercent) }),
-        h('td', { class: 'num', text: a.status === 'in_progress' ? '-' : C.formatGrade(a.grade, a.scale) }),
-        h('td', { class: 'nowrap', text: fmtDate(a.startedAt) }),
-        h('td', { class: 'nowrap', text: fmtDate(a.submittedAt) }),
-        h('td', null, h('a', { class: 'lb-btn sm', href: '#/admin/intentos/' + a.id, text: 'Ver detalle' })))), [2, 4, 5]) : h('div', { class: 'card state', text: 'No hay intentos con estos filtros.' }));
-  };
-  examSel.input.addEventListener('change', () => { filters.examId = examSel.input.value; load(); });
-  userSel.input.addEventListener('change', () => { filters.userId = userSel.input.value; load(); });
-  root.replaceChildren(page('',
-    h('div', { class: 'lab-head' }, h('h1', { text: 'Resultados' })),
-    h('div', { class: 'card' }, h('div', { class: 'lb-row' }, examSel.wrap, userSel.wrap)),
-    h('div', { style: 'margin-top:12px' }, out)));
-  await load();
-  return {};
-};
-
 /* ----- attempt detail ----- */
 screens.adminAttempt = async ctx => {
   const root = ctx.root;
@@ -578,11 +336,11 @@ screens.adminAttempt = async ctx => {
   if (ctx.stale()) return {};
   let cur = 0;
   const stepper = h('div', { class: 'stepper', role: 'group', 'aria-label': 'Ejercicios del intento' });
-  const panel = h('div', { class: 'panel', role: 'region', 'aria-label': 'Detalle del ejercicio' });
+  const panel = h('div', { class: 'rn-panel', role: 'region', 'aria-label': 'Detalle del ejercicio' });
   const detailList = ans => ans.details && ans.details.length
     ? h('ul', { class: 'checks' }, ans.details.map(r => h('li', { class: r.passed ? 'pass' : 'fail' },
-      h('span', { class: 'mark', 'aria-hidden': 'true', text: r.passed ? '✓' : '✗' }),
-      h('span', null, r.label, h('span', { class: 'small muted', text: ' · ' + (r.ref || '') + (r.actual !== undefined ? ' obtuvo "' + r.actual + '"' : '') }), h('span', { class: 'sr-only', text: r.passed ? ' (correcto)' : ' (incorrecto)' })),
+      checkMark(r.passed),
+      h('span', { class: 'ct' }, r.label, h('span', { class: 'small muted', text: ' · ' + (r.ref || '') + (r.actual !== undefined ? ' obtuvo "' + r.actual + '"' : '') }), h('span', { class: 'sr-only', text: r.passed ? ' (correcto)' : ' (incorrecto)' })),
       h('span', { class: 'pts', text: C.formatNumber(r.earned) + ' / ' + C.formatNumber(r.points) }))))
     : h('p', { class: 'muted', text: 'Sin verificaciones calificadas.' });
 
@@ -591,11 +349,12 @@ screens.adminAttempt = async ctx => {
     const ans = a.answers[i];
     stepper.replaceChildren(...a.answers.map((x, j) => h('button', {
       class: 'step' + (x.submittedAt ? ' done' : ''), type: 'button', 'aria-current': j === cur ? 'true' : null, title: x.title,
-      onclick: () => { show(j); }, text: (j + 1) + ' · ' + (x.score === null ? '-' : C.formatNumber(x.score) + '/' + C.formatNumber(x.maxScore)),
-    })));
+      onclick: () => { show(j); },
+    }, h('span', { class: 'n', text: String(j + 1) }), h('span', { class: 'sc', text: x.score === null ? '-' : C.formatNumber(x.score) + '/' + C.formatNumber(x.maxScore) }))));
     if (!ans) { panel.replaceChildren(h('p', { class: 'muted', text: 'Este intento no tiene ejercicios.' })); Sim.loadWorkbook(blankWorkbook(), { readOnly: true }); return; }
     panel.replaceChildren(
       h('h3', null, ans.position + '. ' + ans.title + ' ', ans.score === null ? badge('Sin calificar', 'warn') : badge(C.formatNumber(ans.score) + ' / ' + C.formatNumber(ans.maxScore) + ' pts', 'info')),
+      ans.block ? h('p', { class: 'small muted', text: 'Sección: ' + ans.block }) : null,
       ans.submittedAt ? h('p', { class: 'small muted', text: 'Enviado: ' + fmtDate(ans.submittedAt) }) : h('p', { class: 'small muted', text: 'Sin enviar.' }),
       detailList(ans));
     Sim.loadWorkbook(ans.workbook || blankWorkbook(), { readOnly: true, title: ans.title });
@@ -603,15 +362,18 @@ screens.adminAttempt = async ctx => {
     K.measure();
   };
 
-  const strip = h('div', null,
-    h('div', { class: 'row' },
+  const done = a.status !== 'in_progress';
+  const strip = h('div', { class: 'rn adm' },
+    h('div', { class: 'rn-id' },
       h('span', { class: 'title', text: a.user.name + ' · ' + a.examTitle }),
-      h('span', { class: 'chip', text: 'Intento ' + a.number }),
+      h('span', { class: 'chip att', text: 'Intento ' + a.number }),
       badge(C.statusLabel(a.status), a.status === 'in_progress' ? 'info' : ''),
-      a.status === 'in_progress' ? null : h('span', { class: 'chip', text: C.formatPercent(a.scorePercent) + ' · ' + C.formatGrade(a.grade, a.scale) }),
-      h('span', { class: 'spacer' }),
-      h('a', { class: 'lb-btn sm', href: '#/admin/resultados', text: 'Volver a resultados' })),
-    h('div', { class: 'row' }, stepper),
+      done && a.passed !== null && a.passed !== undefined ? badge(a.passed ? 'Aprobado' : 'Reprobado', a.passed ? 'ok' : 'bad') : null),
+    h('div', { class: 'mini-stats' },
+      done ? stat('Porcentaje', C.formatPercent(a.scorePercent)) : null,
+      done ? stat('Nota', C.formatGrade(a.grade, a.scale)) : null),
+    h('div', { class: 'rn-act' }, h('a', { class: 'lb-btn sm', href: '#/admin/resultados' }, icon('arrowLeft'), 'Volver a resultados')),
+    h('div', { class: 'rn-steps' }, stepper),
     panel);
   root.replaceChildren();
   K.showSim(strip);

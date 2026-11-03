@@ -37,6 +37,7 @@ const ROUTES = [
   ['attempt', new RegExp('^/intento/' + ID + '$'), ['id'], 'user'],
   ['results', /^\/resultados$/, [], 'user'],
   ['adminHome', /^\/admin$/, [], 'admin'],
+  ['adminUsers', /^\/admin\/usuarios$/, [], 'sysadmin'],
   ['adminExercises', /^\/admin\/ejercicios$/, [], 'admin'],
   ['adminExerciseNew', /^\/admin\/ejercicios\/nuevo$/, [], 'admin'],
   ['adminExerciseNewSheet', /^\/admin\/ejercicios\/nuevo\/hoja$/, [], 'admin'],
@@ -45,6 +46,7 @@ const ROUTES = [
   ['adminExams', /^\/admin\/examenes$/, [], 'admin'],
   ['adminExamNew', /^\/admin\/examenes\/nuevo$/, [], 'admin'],
   ['adminExam', new RegExp('^/admin/examenes/' + ID + '$'), ['id'], 'admin'],
+  ['adminExamAnalytics', new RegExp('^/admin/examenes/' + ID + '/analiticas$'), ['id'], 'admin'],
   ['adminResults', /^\/admin\/resultados$/, [], 'admin'],
   ['adminAttempt', new RegExp('^/admin/intentos/' + ID + '$'), ['id'], 'admin'],
 ];
@@ -240,6 +242,23 @@ const CODE_MESSAGES = {
   EXERCISE_ALREADY_SUBMITTED: 'Este ejercicio ya fue enviado y no se puede modificar.',
   INVALID_WORKBOOK: 'El libro es demasiado grande o no es válido (máximo 20 hojas y 8000 celdas con datos).',
   PAYLOAD_TOO_LARGE: 'Los datos superan el tamaño permitido.',
+  ACCESS_CODE_REQUIRED: 'Este examen pide un código de acceso.',
+  INVALID_ACCESS_CODE: 'El código de acceso no es correcto.',
+  PASSWORD_CHANGE_REQUIRED: 'Debes cambiar tu contraseña temporal para continuar.',
+  ACCOUNT_DISABLED: 'Esta cuenta está desactivada. Habla con un administrador.',
+  WRONG_CURRENT_PASSWORD: 'La contraseña actual no es correcta.',
+  PASSWORD_UNCHANGED: 'La nueva contraseña debe ser distinta de la actual.',
+  CANNOT_MODIFY_SELF: 'No puedes cambiar tu propio rol ni desactivar tu propia cuenta.',
+  LAST_ADMIN: 'No puedes dejar el sistema sin administradores activos.',
+  USE_CHANGE_PASSWORD: 'Para tu propia cuenta usa "Cambiar contraseña" en tu perfil.',
+  EXAM_POOL_TOO_SMALL: 'Una sección pide más ejercicios de los que tiene publicados.',
+  PICK_EXCEEDS_POOL: 'Una sección pide más ejercicios de los que tiene publicados.',
+  DUPLICATE_EXERCISES: 'Un ejercicio no puede estar dos veces en el mismo examen.',
+  UNKNOWN_EXERCISE: 'Alguno de los ejercicios ya no existe o no es tuyo.',
+  EXERCISE_NOT_PUBLISHED: 'Solo se pueden usar ejercicios publicados.',
+  EXAM_IN_USE: 'Este examen ya tiene intentos de estudiantes y no se puede eliminar. Despublícalo si ya no debe aparecer.',
+  EXERCISE_IN_USE: 'Este ejercicio ya se usó en intentos y no se puede eliminar. Pásalo a borrador si ya no debe usarse.',
+  INVALID_OWNER: 'Ese propietario no es válido.',
 };
 
 /** Field names (as the API reports them) -> labels shown to the user. */
@@ -248,7 +267,9 @@ const FIELD_LABELS = {
   title: 'Título', instructions: 'Instrucciones', points: 'Puntos', status: 'Estado', workbook: 'Hoja inicial', checks: 'Verificaciones',
   durationMinutes: 'Duración', maxAttempts: 'Intentos máximos', pickCount: 'Ejercicios por intento', scale: 'Escala',
   passPercent: 'Porcentaje para aprobar', gradePolicy: 'Nota del examen', availableFrom: 'Disponible desde', availableUntil: 'Disponible hasta',
-  exerciseIds: 'Ejercicios',
+  exerciseIds: 'Ejercicios', difficulty: 'Dificultad', tags: 'Etiquetas', estimatedMinutes: 'Minutos estimados', category: 'Categoría',
+  description: 'Descripción', accessCode: 'Código de acceso', feedbackMode: 'Retroalimentación', resultMode: 'Resultados', blocks: 'Secciones',
+  currentPassword: 'Contraseña actual', newPassword: 'Nueva contraseña', role: 'Rol',
   sheet: 'hoja', cell: 'celda', expected: 'valor esperado', tolerance: 'tolerancia', functions: 'funciones', range: 'rango', label: 'etiqueta',
 };
 
@@ -477,6 +498,9 @@ function validateExerciseForm(f) {
   if (isNaN(points) || points <= 0 || points > 1000) errors.points = 'Los puntos deben ser un número entre 0 y 1000.';
   if (String(f.instructions || '').length > 20000) errors.instructions = 'Las instrucciones son demasiado largas.';
   if (f.status !== 'draft' && f.status !== 'published') errors.status = 'Elige un estado.';
+  if (f.difficulty !== undefined && !['easy', 'medium', 'hard'].includes(f.difficulty)) errors.difficulty = 'Elige una dificultad.';
+  if (f.estimatedMinutes !== undefined && !isBlank(f.estimatedMinutes) && !isIntIn(f.estimatedMinutes, 1, 600)) errors.estimatedMinutes = 'Escribe minutos enteros entre 1 y 600, o déjalo vacío.';
+  if (f.category !== undefined && String(f.category || '').trim().length > 60) errors.category = 'La categoría es demasiado larga (máximo 60).';
   return errors;
 }
 
@@ -489,6 +513,10 @@ function exerciseFormToPayload(f, checks, workbook) {
     checks,
   };
   if (workbook) payload.workbook = workbook;
+  if (f.difficulty !== undefined) payload.difficulty = f.difficulty;
+  if (f.tags !== undefined) payload.tags = f.tags;
+  if (f.estimatedMinutes !== undefined) payload.estimatedMinutes = isBlank(f.estimatedMinutes) ? null : parseNumber(f.estimatedMinutes);
+  if (f.category !== undefined) payload.category = isBlank(f.category) ? null : String(f.category).trim();
   return payload;
 }
 
@@ -587,6 +615,8 @@ function examCardState(exam) {
   return { key: 'available', label: 'Disponible', cta: exam.attemptsUsed > 0 ? 'Nuevo intento' : 'Comenzar', canStart: true };
 }
 
+const DIFFICULTIES = [{ value: 'easy', label: 'Fácil' }, { value: 'medium', label: 'Media' }, { value: 'hard', label: 'Difícil' }];
+const difficultyLabel = d => { const x = DIFFICULTIES.find(o => o.value === d); return x ? x.label : d || '-'; };
 const STATUS_LABELS = { in_progress: 'En curso', submitted: 'Enviado', expired: 'Tiempo agotado', draft: 'Borrador', published: 'Publicado' };
 const statusLabel = s => STATUS_LABELS[s] || s;
 
@@ -602,7 +632,413 @@ function workbookKey(wb) {
   return JSON.stringify(wb, (k, v) => (k === 'sel' ? undefined : v));
 }
 
+/* ---------- Roles ---------- */
+const ROLE_LABELS = { student: 'Estudiante', teacher: 'Profesor', admin: 'Administrador' };
+const roleLabel = r => ROLE_LABELS[r] || r;
+const ROLE_BADGE = { student: '', teacher: 'info', admin: 'ok' };
+const isStaff = user => !!user && (user.role === 'teacher' || user.role === 'admin');
+
+/* ---------- Markdown-lite (safe by construction) ----------
+   Returns tokens, never HTML: the UI turns them into elements with textContent, so nothing the author
+   types can become markup. Supported: # / ## / ### headings, "- " lists, **bold**, *italic*, `code`. */
+const MD_MAX = 20000;
+const isWordChar = ch => !!ch && /[A-Za-z0-9_À-ɏ]/.test(ch);
+
+function parseInlineMd(src) {
+  const s = String(src);
+  const out = [];
+  let buf = '';
+  const flush = () => { if (buf) { out.push({ k: 'text', s: buf }); buf = ''; } };
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    if (ch === '*' && s[i + 1] === '*') {
+      const j = s.indexOf('**', i + 2);
+      if (j > i + 2) { flush(); out.push({ k: 'b', s: s.slice(i + 2, j) }); i = j + 2; continue; }
+    }
+    if (ch === '`') {
+      const j = s.indexOf('`', i + 1);
+      if (j > i + 1) { flush(); out.push({ k: 'code', s: s.slice(i + 1, j) }); i = j + 1; continue; }
+    }
+    if (ch === '*' && s[i + 1] !== '*' && !isWordChar(s[i - 1]) && s[i + 1] && !/\s/.test(s[i + 1])) {
+      let j = -1;
+      for (let k = i + 2; k < s.length; k++) {
+        if (s[k] === '*' && s[k - 1] !== '*' && s[k + 1] !== '*' && !/\s/.test(s[k - 1]) && !isWordChar(s[k + 1])) { j = k; break; }
+      }
+      if (j > 0) { flush(); out.push({ k: 'i', s: s.slice(i + 1, j) }); i = j + 1; continue; }
+    }
+    buf += ch;
+    i++;
+  }
+  flush();
+  return out;
+}
+
+/** text -> [{ t:'h', level:1|2|3, inline }, { t:'ul', items:[inline] }, { t:'p', inline }] */
+function parseMarkdownLite(text) {
+  const lines = String(text == null ? '' : text).slice(0, MD_MAX).replace(/\r/g, '').split('\n');
+  const blocks = [];
+  let para = [];
+  let list = null;
+  const endPara = () => { if (para.length) { blocks.push({ t: 'p', inline: parseInlineMd(para.join('\n')) }); para = []; } };
+  const endList = () => { if (list) { blocks.push({ t: 'ul', items: list }); list = null; } };
+  for (const raw of lines) {
+    const line = raw.replace(/\s+$/, '');
+    let m;
+    if (!line.trim()) { endPara(); endList(); continue; }
+    if ((m = /^(#{1,3})\s+(.+)$/.exec(line))) { endPara(); endList(); blocks.push({ t: 'h', level: m[1].length, inline: parseInlineMd(m[2]) }); continue; }
+    if ((m = /^\s{0,3}-\s+(.+)$/.exec(line))) { endPara(); (list = list || []).push(parseInlineMd(m[1])); continue; }
+    endList();
+    para.push(line);
+  }
+  endPara(); endList();
+  return blocks;
+}
+
+/** Insert markers around a selection for the formatting helper bar. Returns { value, start, end }. */
+function applyMdFormat(value, start, end, kind) {
+  const v = String(value);
+  const a = Math.max(0, Math.min(start, v.length)), b = Math.max(a, Math.min(end, v.length));
+  const sel = v.slice(a, b);
+  if (kind === 'bold' || kind === 'italic' || kind === 'code') {
+    const mark = kind === 'bold' ? '**' : kind === 'italic' ? '*' : '`';
+    const inner = sel || (kind === 'bold' ? 'texto' : kind === 'italic' ? 'texto' : 'codigo');
+    const next = v.slice(0, a) + mark + inner + mark + v.slice(b);
+    return { value: next, start: a + mark.length, end: a + mark.length + inner.length };
+  }
+  const lineStart = v.lastIndexOf('\n', a - 1) + 1;
+  const prefix = kind === 'heading' ? '# ' : '- ';
+  const chunk = v.slice(lineStart, b || a);
+  const lines = (chunk || '').split('\n').map(l => (l.startsWith(prefix) ? l : prefix + l));
+  const next = v.slice(0, lineStart) + lines.join('\n') + v.slice(b || a);
+  return { value: next, start: lineStart, end: lineStart + lines.join('\n').length };
+}
+
+/* ---------- Tags, e-mails, passwords ---------- */
+function normalizeTag(raw) {
+  return String(raw == null ? '' : raw).trim().replace(/\s+/g, ' ').toLowerCase().slice(0, 30);
+}
+/** Adds a tag to a copy of the list (lowercase, unique, max 10). Returns { tags, added, reason }. */
+function addTag(tags, raw) {
+  const tag = normalizeTag(raw);
+  if (!tag) return { tags: tags.slice(), added: false, reason: '' };
+  if (tags.includes(tag)) return { tags: tags.slice(), added: false, reason: 'Esa etiqueta ya está agregada.' };
+  if (tags.length >= 10) return { tags: tags.slice(), added: false, reason: 'Máximo 10 etiquetas.' };
+  return { tags: tags.concat(tag), added: true, reason: '' };
+}
+
+/** Free text (one per line / comma / semicolon) -> { valid: [unique lowercase], invalid: [...] }. */
+function parseEmails(text) {
+  const valid = [], invalid = [];
+  const seen = new Set();
+  for (const part of String(text || '').split(/[\s,;]+/)) {
+    const e = part.trim().toLowerCase();
+    if (!e || seen.has(e)) continue;
+    seen.add(e);
+    (EMAIL_RE.test(e) && e.length <= 254 ? valid : invalid).push(e);
+  }
+  return { valid, invalid };
+}
+
+const PW_ALPHABET = { lower: 'abcdefghijkmnpqrstuvwxyz', upper: 'ABCDEFGHJKLMNPQRSTUVWXYZ', digit: '23456789', symbol: '!@#$%&*?' };
+/** randomInt(n) -> integer in [0, n). Injectable so it is testable; the UI passes crypto.getRandomValues. */
+function generatePassword(randomInt, length) {
+  const len = Math.max(10, Math.min(64, length || 12));
+  const groups = Object.values(PW_ALPHABET);
+  const all = groups.join('');
+  const out = groups.map(g => g[randomInt(g.length)]);
+  while (out.length < len) out.push(all[randomInt(all.length)]);
+  for (let i = out.length - 1; i > 0; i--) { const j = randomInt(i + 1); [out[i], out[j]] = [out[j], out[i]]; }
+  return out.join('');
+}
+function generateAccessCode(randomInt, length) {
+  const alphabet = PW_ALPHABET.upper + PW_ALPHABET.digit;
+  let s = '';
+  for (let i = 0; i < (length || 6); i++) s += alphabet[randomInt(alphabet.length)];
+  return s;
+}
+/** score 0-4 plus a Spanish label and a hint about what to improve. */
+function passwordStrength(pw) {
+  const p = String(pw || '');
+  if (!p) return { score: 0, label: '', hint: '' };
+  let score = 0;
+  if (p.length >= 8) score++;
+  if (p.length >= 12) score++;
+  if (/[a-z]/.test(p) && /[A-Z]/.test(p)) score++;
+  if (/\d/.test(p) && /[^A-Za-z0-9]/.test(p)) score++;
+  else if (/\d/.test(p) || /[^A-Za-z0-9]/.test(p)) score += 0.5;
+  score = Math.min(4, Math.floor(score));
+  if (p.length < 8) return { score: Math.min(score, 1), label: 'Muy corta', hint: 'Usa al menos 8 caracteres.' };
+  const labels = ['Débil', 'Débil', 'Aceptable', 'Buena', 'Fuerte'];
+  const hints = ['Mezcla letras, números y símbolos.', 'Añade más caracteres y mezcla mayúsculas.', 'Añade números o símbolos para reforzarla.', 'Casi lista: unos caracteres más la hacen fuerte.', 'Muy buena contraseña.'];
+  return { score, label: labels[score], hint: hints[score] };
+}
+function validateChangePassword(v) {
+  const errors = {};
+  if (!v.current) errors.current = 'Escribe tu contraseña actual.';
+  if (!v.next) errors.next = 'Escribe la nueva contraseña.';
+  else if (String(v.next).length < 8) errors.next = 'La contraseña debe tener al menos 8 caracteres.';
+  else if (String(v.next).length > 256) errors.next = 'La contraseña es demasiado larga.';
+  else if (v.current && v.next === v.current) errors.next = 'La nueva contraseña debe ser distinta de la actual.';
+  if (!v.confirm) errors.confirm = 'Repite la nueva contraseña.';
+  else if (v.confirm !== v.next) errors.confirm = 'Las contraseñas no coinciden.';
+  return errors;
+}
+function validateUserForm(v, opts) {
+  const errors = {};
+  if (isBlank(v.name)) errors.name = 'Escribe el nombre.';
+  else if (String(v.name).trim().length > 120) errors.name = 'El nombre es demasiado largo (máximo 120 caracteres).';
+  if (!opts || opts.needEmail !== false) {
+    if (isBlank(v.email)) errors.email = 'Escribe el correo.';
+    else if (!EMAIL_RE.test(String(v.email).trim())) errors.email = 'Escribe un correo válido.';
+  }
+  if (!ROLE_LABELS[v.role]) errors.role = 'Elige un rol.';
+  if (!opts || opts.needPassword !== false) {
+    if (!v.password) errors.password = 'Escribe o genera una contraseña temporal.';
+    else if (String(v.password).length < 8) errors.password = 'La contraseña debe tener al menos 8 caracteres.';
+  }
+  return errors;
+}
+
+/** { totalPages, from, to } for a "1-25 de 80" label. */
+function pageInfo(total, page, pageSize) {
+  const pages = Math.max(1, Math.ceil((total || 0) / pageSize));
+  const p = Math.max(1, Math.min(page, pages));
+  return { pages, page: p, from: total ? (p - 1) * pageSize + 1 : 0, to: Math.min(total, p * pageSize) };
+}
+
+/* ---------- Exam settings (builder form) ---------- */
+const FEEDBACK_MODES = [
+  { value: 'none', label: 'Nada', help: 'Al enviar un ejercicio el estudiante solo ve que quedó enviado, sin puntaje.' },
+  { value: 'score', label: 'Solo la nota', help: 'Al enviar un ejercicio ve su puntaje, pero no cuáles verificaciones fallaron.' },
+  { value: 'details', label: 'Nota con detalle', help: 'Ve el puntaje y el resultado de cada verificación (correcta o incorrecta).' },
+];
+const RESULT_MODES = [
+  { value: 'immediate', label: 'Inmediato', help: 'La nota final se muestra apenas el estudiante termina su intento.' },
+  { value: 'after_close', label: 'Al cerrar el examen', help: 'La nota se oculta hasta que pase la fecha de cierre o el estudiante agote sus intentos.' },
+  { value: 'hidden', label: 'Oculto', help: 'El estudiante nunca ve su nota; solo la ve el personal.' },
+];
+const modeHelp = (list, value) => { const m = list.find(x => x.value === value); return m ? m.help : ''; };
+
+function examSettingsToForm(exam) {
+  const base = examToForm(exam);
+  return {
+    title: base.title,
+    description: exam.description || '',
+    instructions: base.instructions,
+    durationMinutes: base.durationMinutes,
+    maxAttempts: base.maxAttempts,
+    scale: base.scale,
+    passPercent: base.passPercent,
+    gradePolicy: base.gradePolicy,
+    status: base.status,
+    availableFrom: base.availableFrom,
+    availableUntil: base.availableUntil,
+    shuffleBlocks: !!exam.shuffleBlocks,
+    feedbackMode: exam.feedbackMode || 'details',
+    resultMode: exam.resultMode || 'immediate',
+    allowReview: !!exam.allowReview,
+    accessCode: exam.accessCode || '',
+    restricted: !!exam.restricted,
+    ownerId: exam.ownerId || '',
+  };
+}
+function validateExamSettings(f) {
+  const errors = validateExamForm({ ...f, pickCount: '' });
+  if (String(f.description || '').length > 500) errors.description = 'La descripción es demasiado larga (máximo 500).';
+  if (String(f.accessCode || '').trim().length > 64) errors.accessCode = 'El código es demasiado largo (máximo 64).';
+  if (!FEEDBACK_MODES.some(m => m.value === f.feedbackMode)) errors.feedbackMode = 'Elige qué ve el estudiante al enviar.';
+  if (!RESULT_MODES.some(m => m.value === f.resultMode)) errors.resultMode = 'Elige cuándo se muestra la nota.';
+  return errors;
+}
+/** Settings payload for PUT /admin/exams/:id (no blocks, no deprecated pickCount). */
+function examSettingsToPayload(f, opts) {
+  const p = {
+    title: String(f.title).trim(),
+    description: String(f.description || '').trim(),
+    instructions: String(f.instructions || ''),
+    durationMinutes: parseNumber(f.durationMinutes),
+    maxAttempts: parseNumber(f.maxAttempts),
+    scale: parseNumber(f.scale),
+    passPercent: parseNumber(f.passPercent),
+    gradePolicy: f.gradePolicy,
+    status: f.status,
+    availableFrom: localInputToIso(f.availableFrom) || null,
+    availableUntil: localInputToIso(f.availableUntil) || null,
+    shuffleBlocks: !!f.shuffleBlocks,
+    feedbackMode: f.feedbackMode,
+    resultMode: f.resultMode,
+    allowReview: !!f.allowReview,
+    accessCode: isBlank(f.accessCode) ? null : String(f.accessCode).trim(),
+    restricted: !!f.restricted,
+  };
+  if (opts && opts.withOwner && f.ownerId) p.ownerId = f.ownerId;
+  return p;
+}
+
+/* ---------- Exam blocks (builder) ---------- */
+let blockSeq = 0;
+function newBlock(title) {
+  return { key: 'b' + (++blockSeq), id: null, title: title || 'Sección', pick: '', shuffle: false, exercises: [] };
+}
+/** API exam -> editable blocks. `pick` is '' (todos) or a numeric string. */
+function blocksFromExam(exam) {
+  return (exam && exam.blocks ? exam.blocks : []).map(b => ({
+    key: 'b' + (++blockSeq), id: b.id || null, title: b.title || 'Sección',
+    pick: b.pickCount == null ? '' : String(b.pickCount), shuffle: !!b.shuffle,
+    exercises: (b.exercises || []).map(e => ({
+      exerciseId: e.exerciseId, title: e.title, points: e.points, status: e.status,
+      pointsOverride: e.pointsOverride == null ? '' : String(e.pointsOverride),
+    })),
+  }));
+}
+const publishedCount = b => b.exercises.filter(e => e.status === 'published').length;
+const effPoints = e => { const o = parseNumber(e.pointsOverride); return !isBlank(e.pointsOverride) && !isNaN(o) ? o : Number(e.points) || 0; };
+
+/** Per-block and overall figures for the totals panel. Expected points = picks x average points of the block. */
+function blockTotals(blocks) {
+  const rows = blocks.map(b => {
+    const pool = publishedCount(b);
+    const pub = b.exercises.filter(e => e.status === 'published');
+    const pickN = isBlank(b.pick) ? pool : Math.min(parseNumber(b.pick) || 0, pool);
+    const poolPoints = pub.reduce((s, e) => s + effPoints(e), 0);
+    const avg = pub.length ? poolPoints / pub.length : 0;
+    return { key: b.key, pool, total: b.exercises.length, picks: pickN, poolPoints, expectedPoints: isBlank(b.pick) ? poolPoints : avg * pickN };
+  });
+  return {
+    rows,
+    exercises: rows.reduce((n, r) => n + r.picks, 0),
+    poolSize: rows.reduce((n, r) => n + r.pool, 0),
+    poolPoints: rows.reduce((n, r) => n + r.poolPoints, 0),
+    expectedPoints: rows.reduce((n, r) => n + r.expectedPoints, 0),
+  };
+}
+/** Validation of the block editor: { errors: { [blockKey]: { title?, pick?, override: {idx: msg} } }, ok }. */
+function validateBlocks(blocks) {
+  const errors = {};
+  const seen = new Set();
+  blocks.forEach(b => {
+    const e = {};
+    if (isBlank(b.title)) e.title = 'Escribe el nombre de la sección.';
+    else if (String(b.title).trim().length > 120) e.title = 'El nombre es demasiado largo (máximo 120).';
+    if (!isBlank(b.pick)) {
+      const n = parseNumber(b.pick);
+      const pool = publishedCount(b);
+      if (!Number.isInteger(n) || n < 1) e.pick = 'Escribe un entero mayor o igual a 1, o elige "todos".';
+      else if (n > pool) e.pick = pool ? 'Pides ' + n + ' pero solo hay ' + pool + ' ejercicio(s) publicado(s) en la sección.' : 'La sección no tiene ejercicios publicados.';
+    }
+    b.exercises.forEach((x, i) => {
+      if (!isBlank(x.pointsOverride)) {
+        const o = parseNumber(x.pointsOverride);
+        if (isNaN(o) || o <= 0 || o > 1000) (e.override = e.override || {})[i] = 'Entre 0 y 1000.';
+      }
+      if (seen.has(x.exerciseId)) (e.dup = e.dup || {})[i] = 'Repetido en el examen.';
+      seen.add(x.exerciseId);
+    });
+    if (Object.keys(e).length) errors[b.key] = e;
+  });
+  if (blocks.length > 20) errors._ = { count: 'Máximo 20 secciones.' };
+  return { errors, ok: Object.keys(errors).length === 0 };
+}
+/** Editable blocks -> body of PUT /admin/exams/:id/blocks. */
+function blocksToPayload(blocks) {
+  return {
+    blocks: blocks.map(b => {
+      const out = {
+        title: String(b.title).trim(),
+        pickCount: isBlank(b.pick) ? null : parseNumber(b.pick),
+        shuffle: !!b.shuffle,
+        exercises: b.exercises.map(x => {
+          const o = { exerciseId: x.exerciseId };
+          if (!isBlank(x.pointsOverride)) o.pointsOverride = parseNumber(x.pointsOverride);
+          return o;
+        }),
+      };
+      if (b.id) out.id = b.id;
+      return out;
+    }),
+  };
+}
+/** Mirror of the server's publish validation: [{ key, ok, label, detail }]. */
+function publishChecklist(f, blocks, now) {
+  const items = [];
+  const t = blockTotals(blocks);
+  items.push({ key: 'title', ok: !isBlank(f.title), label: 'Tiene título', detail: isBlank(f.title) ? 'Escribe un título.' : '' });
+  items.push({ key: 'blocks', ok: blocks.length > 0, label: 'Tiene al menos una sección', detail: blocks.length ? '' : 'Agrega una sección.' });
+  items.push({ key: 'exercises', ok: t.poolSize > 0, label: 'Tiene ejercicios publicados', detail: t.poolSize > 0 ? t.poolSize + ' ejercicio(s) publicado(s) en total.' : 'Agrega ejercicios publicados a una sección.' });
+  const bad = blocks.filter(b => !isBlank(b.pick) && (!Number.isInteger(parseNumber(b.pick)) || parseNumber(b.pick) > publishedCount(b)));
+  items.push({ key: 'pick', ok: bad.length === 0, label: 'Los sorteos no superan el banco de cada sección', detail: bad.length ? 'Revisa: ' + bad.map(b => b.title || 'Sección').join(', ') + '.' : '' });
+  const drafts = blocks.reduce((n, b) => n + b.exercises.length - publishedCount(b), 0);
+  items.push({ key: 'drafts', ok: drafts === 0, warn: true, label: 'No hay ejercicios en borrador', detail: drafts ? drafts + ' ejercicio(s) en borrador no se sortean hasta que los publiques.' : '' });
+  const from = localInputToIso(f.availableFrom), until = localInputToIso(f.availableUntil);
+  let windowOk = from !== undefined && until !== undefined;
+  let detail = windowOk ? '' : 'Alguna fecha no es válida.';
+  if (windowOk && from && until && Date.parse(from) >= Date.parse(until)) { windowOk = false; detail = 'El cierre debe ser posterior a la apertura.'; }
+  else if (windowOk && until && Date.parse(until) <= (now || Date.now())) { windowOk = false; detail = 'La fecha de cierre ya pasó: nadie podrá iniciar el examen.'; }
+  items.push({ key: 'window', ok: windowOk, label: 'La ventana de disponibilidad es coherente', detail });
+  return items;
+}
+const checklistReady = items => items.filter(i => !i.warn).every(i => i.ok);
+
+/* ---------- Charts ---------- */
+/** Bars for a w x h SVG with padding: [{ x, y, w, h, value, i }] and a "nice" upper bound. */
+function barLayout(values, width, height, pad) {
+  const p = Object.assign({ l: 28, r: 8, t: 10, b: 22 }, pad || {});
+  const max = Math.max(1, ...values);
+  const nice = max <= 5 ? max : Math.ceil(max / 5) * 5;
+  const iw = width - p.l - p.r, ih = height - p.t - p.b;
+  const slot = values.length ? iw / values.length : 0;
+  const gap = Math.min(8, slot * 0.25);
+  return {
+    max: nice, pad: p, slot,
+    bars: values.map((v, i) => {
+      const bh = nice ? (v / nice) * ih : 0;
+      return { i, value: v, x: p.l + i * slot + gap / 2, w: Math.max(1, slot - gap), h: bh, y: p.t + ih - bh };
+    }),
+  };
+}
+/** Polyline points (and closed area path) for a series. */
+function areaPath(values, width, height, pad) {
+  const p = Object.assign({ l: 28, r: 8, t: 10, b: 22 }, pad || {});
+  const max = Math.max(1, ...values);
+  const nice = max <= 5 ? max : Math.ceil(max / 5) * 5;
+  const iw = width - p.l - p.r, ih = height - p.t - p.b;
+  const step = values.length > 1 ? iw / (values.length - 1) : 0;
+  const pts = values.map((v, i) => [Math.round((p.l + i * step) * 10) / 10, Math.round((p.t + ih - (v / nice) * ih) * 10) / 10]);
+  const line = pts.map((q, i) => (i ? 'L' : 'M') + q[0] + ' ' + q[1]).join(' ');
+  const base = p.t + ih;
+  return { max: nice, pts, line, area: pts.length ? line + ' L' + pts[pts.length - 1][0] + ' ' + base + ' L' + pts[0][0] + ' ' + base + ' Z' : '', pad: p };
+}
+
+/* ---------- Instructions dock (student runner) ---------- */
+const instrPrefKey = attemptId => 'gridlab.instr.' + attemptId;
+/** 'open' | 'closed' | null from a stored string. */
+const parseInstrPref = v => (v === 'open' || v === 'closed' ? v : null);
+/** open state: stored preference wins; otherwise open on roomy screens and closed on phones. */
+function instrInitialOpen(pref, isCompact) {
+  const p = parseInstrPref(pref);
+  return p ? p === 'open' : !isCompact;
+}
+
+/** Message that replaces the grade when the student cannot see it yet. */
+function hiddenResultMessage(resultMode) {
+  if (resultMode === 'after_close') return 'Resultados disponibles al cerrar el examen.';
+  if (resultMode === 'hidden') return 'En este examen la nota la publica tu docente; aquí no se muestra.';
+  return 'Tus resultados todavía no están disponibles.';
+}
+/** What a student sees right after submitting one exercise, by feedback mode. */
+function feedbackSummary(mode, out) {
+  if (mode === 'none' || out.score === null || out.score === undefined) return 'Ejercicio enviado. Tu respuesta quedó registrada.';
+  return 'Ejercicio calificado: ' + formatNumber(out.score) + ' de ' + formatNumber(out.maxScore) + ' puntos.';
+}
+
 root.LabCore = {
+  ROLE_LABELS, roleLabel, ROLE_BADGE, isStaff,
+  parseMarkdownLite, parseInlineMd, applyMdFormat,
+  normalizeTag, addTag, parseEmails, generatePassword, generateAccessCode, passwordStrength, validateChangePassword, validateUserForm, pageInfo,
+  FEEDBACK_MODES, RESULT_MODES, modeHelp, examSettingsToForm, validateExamSettings, examSettingsToPayload,
+  newBlock, blocksFromExam, blockTotals, validateBlocks, blocksToPayload, publishChecklist, checklistReady, effPoints, publishedCount,
+  barLayout, areaPath, instrPrefKey, parseInstrPref, instrInitialOpen, hiddenResultMessage, feedbackSummary,
   formatNumber, formatGrade, formatPercent,
   parseQuery, parseHash, matchRoute, safeNext, deepLinkTarget, loginHash, registerHash,
   createClock, formatDuration, timerLevel, createAutosaver,
@@ -610,6 +1046,6 @@ root.LabCore = {
   validateLogin, validateRegister,
   CHECK_TYPES, blankCheckRow, checkToRow, rowToCheck, rowsToChecks, parseScalar, scalarToText, parseMatrix, matrixToText, rangeDims,
   validateExerciseForm, exerciseFormToPayload, examToForm, validateExamForm, examFormToPayload, isoToLocalInput, localInputToIso,
-  moveItem, examCardState, statusLabel, attemptProgress, workbookKey,
+  DIFFICULTIES, difficultyLabel, moveItem, examCardState, statusLabel, attemptProgress, workbookKey,
 };
 })(typeof globalThis !== 'undefined' ? globalThis : this);
