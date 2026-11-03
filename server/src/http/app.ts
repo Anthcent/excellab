@@ -11,6 +11,8 @@ import { authRoutes } from "../auth/routes.js";
 import { studentRoutes } from "../attempts/routes.js";
 import { exerciseAdminRoutes } from "../exercises/routes.js";
 import { examAdminRoutes } from "../exams/routes.js";
+import { userAdminRoutes } from "../users/routes.js";
+import { statsRoutes } from "../stats/routes.js";
 import { expireOverdueAttempts } from "../attempts/service.js";
 import { AppError, errorHandler } from "./errors.js";
 import type { AppContext } from "./context.js";
@@ -30,7 +32,8 @@ declare module "fastify" {
   }
 }
 
-const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+const PASSWORD_CHANGE_ALLOWED = new Set(["/api/auth/me", "/api/auth/logout", "/api/auth/change-password", "/api/health"]);
+const SAFE_METHODS =new Set(["GET", "HEAD", "OPTIONS"]);
 const badOrigin = () => new AppError(403, "BAD_ORIGIN", "Solicitud no permitida desde este origen.");
 const defaultPublicDir = fileURLToPath(new URL("../../../public/", import.meta.url));
 
@@ -44,6 +47,7 @@ export async function buildApp({ db, config, logger = false, now = () => new Dat
     loginThrottle: new Throttle(5, 60_000),
     emailThrottle: new Throttle(20, 60_000),
     registerThrottle: new Throttle(30, 600_000),
+    secretThrottle: new Throttle(10, 60_000),
     now,
   };
 
@@ -91,6 +95,10 @@ export async function buildApp({ db, config, logger = false, now = () => new Dat
     if (!session) return;
     request.user = session.user;
     if (session.renewed) setSessionCookie(reply, token, ctx.sessions);
+    // A temporary password must be replaced before anything else can be done.
+    if (session.user.mustChangePassword && !PASSWORD_CHANGE_ALLOWED.has(request.url.split("?")[0]!)) {
+      throw new AppError(403, "PASSWORD_CHANGE_REQUIRED", "Debes cambiar tu contraseña temporal para continuar.");
+    }
   });
 
   app.addHook("onSend", async (request, reply) => {
@@ -110,6 +118,8 @@ export async function buildApp({ db, config, logger = false, now = () => new Dat
       await studentRoutes(api, ctx);
       await exerciseAdminRoutes(api, ctx);
       await examAdminRoutes(api, ctx);
+      await userAdminRoutes(api, ctx);
+      await statsRoutes(api, ctx);
     },
     { prefix: "/api" },
   );

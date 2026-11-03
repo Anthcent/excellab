@@ -10,6 +10,8 @@ export interface AppContext {
   loginThrottle: Throttle;
   emailThrottle: Throttle;
   registerThrottle: Throttle;
+  /** Wrong exam access codes and current-password guesses, per user. */
+  secretThrottle: Throttle;
   /** Injectable clock: every deadline/availability decision goes through it (tests move it). */
   now: () => Date;
 }

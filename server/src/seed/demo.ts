@@ -1,6 +1,7 @@
 import type { Db } from "../db/db.js";
 import type { Workbook } from "../grid/engine.js";
 import type { Check } from "../grid/checks.js";
+import { hashPassword } from "../auth/password.js";
 
 /** Demo content so the owner can try the whole flow right after the first boot. Runs once (marker in app_meta). */
 
@@ -117,31 +118,56 @@ function demoExercises(): DemoExercise[] {
   ];
 }
 
+const DEMO_TAGS = [["suma", "basico"], ["si", "logica"], ["buscarv", "busqueda"], ["contar.si", "conteo"]];
+const DEMO_DIFFICULTY = ["easy", "easy", "medium", "medium"];
+
 export async function seedDemo(db: Db, log: (message: string) => void) {
   const marker = await db.query("SELECT 1 FROM app_meta WHERE key = 'demo_seeded'");
   if (marker.rows.length) return;
   await db.tx(async (t) => {
+    const admin = await t.query<{ id: string }>("SELECT id FROM users WHERE role = 'admin' ORDER BY created_at, id LIMIT 1");
+    const owner = admin.rows[0]?.id ?? null;
     const ids: string[] = [];
-    for (const ex of demoExercises()) {
+    for (const [i, ex] of demoExercises().entries()) {
       const { rows } = await t.query<{ id: string }>(
-        `INSERT INTO exercises (title, instructions, points, workbook, checks, status)
-         VALUES ($1, $2, 10, $3::jsonb, $4::jsonb, 'published') RETURNING id`,
-        [ex.title, ex.instructions, JSON.stringify(ex.workbook), JSON.stringify(ex.checks)],
+        `INSERT INTO exercises (title, instructions, points, workbook, checks, status, difficulty, tags, estimated_minutes, category, created_by, owner_id)
+         VALUES ($1, $2, 10, $3::jsonb, $4::jsonb, 'published', $5, $6::jsonb, 5, 'Funciones básicas', $7, $7) RETURNING id`,
+        [ex.title, ex.instructions, JSON.stringify(ex.workbook), JSON.stringify(ex.checks), DEMO_DIFFICULTY[i], JSON.stringify(DEMO_TAGS[i]), owner],
       );
       ids.push(rows[0]!.id);
     }
     const { rows } = await t.query<{ id: string }>(
-      `INSERT INTO exams (title, instructions, duration_minutes, max_attempts, pick_count, scale, pass_percent, grade_policy, status)
-       VALUES ($1, $2, 30, 2, NULL, 20, 60, 'best', 'published') RETURNING id`,
+      `INSERT INTO exams (title, description, instructions, duration_minutes, max_attempts, pick_count, scale, pass_percent, grade_policy, status, created_by, owner_id)
+       VALUES ($1, $2, $3, 30, 2, NULL, 20, 60, 'best', 'published', $4, $4) RETURNING id`,
       [
         "Examen demo de fórmulas",
+        "Cuatro ejercicios de fórmulas básicas.",
         "Este examen tiene 4 ejercicios de fórmulas básicas, en orden aleatorio.\n\n- Dispones de 30 minutos desde que comienzas.\n- Tienes 2 intentos; cuenta la mejor nota.\n- Cada ejercicio se envía una sola vez y se califica al instante.\n- Cuando se acaba el tiempo, el examen se cierra y se califica lo que hayas guardado.",
+        owner,
       ],
     );
+    const block = await t.query<{ id: string }>(
+      "INSERT INTO exam_blocks (exam_id, position, title, pick_count, shuffle) VALUES ($1, 0, 'Funciones básicas', NULL, true) RETURNING id",
+      [rows[0]!.id],
+    );
     for (const [position, id] of ids.entries()) {
-      await t.query("INSERT INTO exam_exercises (exam_id, exercise_id, position) VALUES ($1, $2, $3)", [rows[0]!.id, id, position]);
+      await t.query("INSERT INTO exam_block_exercises (block_id, exercise_id, position) VALUES ($1, $2, $3)", [block.rows[0]!.id, id, position]);
     }
     await t.query("INSERT INTO app_meta (key, value) VALUES ('demo_seeded', '1')");
   });
   log("Seeded demo exam with 4 exercises");
+}
+
+/** Development convenience only (never called in production): a teacher account to try the staff screens. */
+export const DEMO_TEACHER = { email: "profesor@excellab.local", password: "profesor12345", name: "Profesor Demo" };
+
+export async function seedDemoTeacher(db: Db, log: (message: string) => void) {
+  const exists = await db.query("SELECT 1 FROM users WHERE email = $1", [DEMO_TEACHER.email]);
+  if (exists.rows.length) return;
+  await db.query(
+    `INSERT INTO users (name, email, password_hash, role, must_change_password) VALUES ($1, $2, $3, 'teacher', false)
+     ON CONFLICT (email) DO NOTHING`,
+    [DEMO_TEACHER.name, DEMO_TEACHER.email, await hashPassword(DEMO_TEACHER.password)],
+  );
+  log(`Created demo teacher ${DEMO_TEACHER.email}`);
 }

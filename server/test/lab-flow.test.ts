@@ -4,7 +4,7 @@ import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 // @ts-expect-error jsdom ships no types in this project
 import { JSDOM, VirtualConsole } from "jsdom";
-import { createTestEnv, ADMIN, type TestEnv } from "./helpers.js";
+import { createTestEnv, ADMIN, exerciseBody, type TestEnv } from "./helpers.js";
 
 /**
  * End-to-end flow of the lab UI: the real built page (public/index.html) runs inside jsdom against a real
@@ -84,6 +84,7 @@ async function waitFor<T>(fn: () => T | undefined | null | false, what: string, 
 const view = (w: any) => w.document.getElementById("labView") as HTMLElement;
 const viewText = (w: any) => view(w).textContent || "";
 const stripText = (w: any) => w.document.getElementById("labStrip").textContent || "";
+const dockText = (w: any) => (w.document.getElementById("instrCard")?.textContent as string) || "";
 const hashOf = (w: any) => w.location.hash as string;
 const bodyIs = (w: any, text: string) => (w.document.body.textContent || "").includes(text);
 
@@ -275,10 +276,11 @@ test("admin: login redirect, create exercise (form + sheet + checks), preview gr
   await fill(w, ev, "Duración (minutos)", "30");
   await fill(w, ev, "Estado", "published");
   byText(ev, "button", "Crear examen")!.click();
-  await waitFor(() => (ev.textContent || "").includes("Agrega al menos un ejercicio"), "exam without exercises rejected");
+  await waitFor(() => (ev.textContent || "").includes("No se puede publicar todavía"), "exam without exercises rejected");
+  await clickText(w, "button", "Secciones y ejercicios");
   const addBtn = await waitFor(() => [...ev.querySelectorAll("button")].find((b) => b.getAttribute("aria-label") === "Agregar Suma de B1 y B2"), "add button");
   (addBtn as HTMLElement).click();
-  await waitFor(() => (ev.querySelector("ol")!.textContent || "").includes("Suma de B1 y B2"), "exercise picked");
+  await waitFor(() => (ev.querySelector(".blk-list")!.textContent || "").includes("Suma de B1 y B2"), "exercise picked");
   byText(ev, "button", "Crear examen")!.click();
   await waitFor(() => /^#\/admin\/examenes\/[0-9a-f-]{36}$/.test(hashOf(w)), "redirect to the created exam");
   state.examId = hashOf(w).split("/").pop()!;
@@ -286,7 +288,7 @@ test("admin: login redirect, create exercise (form + sheet + checks), preview gr
 
   // Exercise list now flags it as in use; lists render
   w.location.hash = "#/admin/ejercicios";
-  await waitFor(() => viewText(w).includes("En 1 examen"), "in-use badge");
+  await waitFor(() => viewText(w).includes("1 examen"), "in-use badge");
   w.location.hash = "#/admin/examenes";
   await waitFor(() => viewText(w).includes("Parcial de sumas"), "exam list");
 
@@ -336,12 +338,40 @@ test("student: deep link -> register -> instructions -> attempt -> autosave -> r
 
   // Runner
   await waitFor(() => stripText(w).includes("1 de 1 ejercicios") && w.document.getElementById("app").hidden === false, "runner visible");
+  assert.equal(w.document.getElementById("instrTab") !== null, true);
   assert.match(stripText(w), /Parcial de sumas/);
   assert.match(stripText(w), /Intento 1/);
   const timer = w.document.querySelector(".timer");
   assert.match(timer.textContent, /^(29|30):\d\d$/);
-  assert.match(stripText(w), /Suma de B1 y B2/);
-  assert.match(stripText(w), /En B4 suma B1 y B2/);
+  // Instructions dock: open by default on roomy screens; the tab, Escape and the close button hide it
+  const tab = w.document.getElementById("instrTab");
+  const card = w.document.getElementById("instrCard");
+  assert.equal(card.getAttribute("role"), "dialog");
+  assert.equal(card.getAttribute("aria-modal"), "false");
+  assert.equal(tab.getAttribute("aria-controls"), "instrCard");
+  assert.equal(tab.getAttribute("aria-expanded"), "true");
+  assert.equal(card.hidden, false);
+  assert.equal(tab.classList.contains("is-open"), true);
+  assert.match(dockText(w), /Suma de B1 y B2/);
+  assert.match(dockText(w), /En B4 suma B1 y B2/);
+  assert.match(dockText(w), /10 pts/);
+  assert.equal(stripText(w).includes("En B4 suma"), false, "instructions no longer live in the strip");
+  tab.click();
+  assert.equal(card.hidden, true);
+  assert.equal(tab.getAttribute("aria-expanded"), "false");
+  assert.equal(tab.classList.contains("is-open"), false, "closed tab is rendered semi-transparent (no is-open class)");
+  assert.equal(w.document.activeElement, tab, "focus stays on the tab");
+  assert.equal(w.sessionStorage.getItem("gridlab.instr." + state.attemptId), "closed", "preference is remembered per attempt");
+  tab.click();
+  assert.equal(card.hidden, false);
+  assert.equal(w.sessionStorage.getItem("gridlab.instr." + state.attemptId), "open");
+  key(w, w.document.body, "Escape");
+  assert.equal(card.hidden, true, "Escape closes it");
+  tab.click();
+  (card.querySelector('button[aria-label="Cerrar instrucciones"]') as HTMLElement).click();
+  assert.equal(card.hidden, true);
+  assert.equal(w.document.activeElement, tab, "focus returns to the tab after closing with the button");
+  tab.click();
   assert.equal(cell(w, "B2").textContent, "7");
   assert.equal(w.Lab.isReadOnly(), false);
   typeInCell(w, "B4", "=SUMA(B1:B2)");
@@ -363,9 +393,10 @@ test("student: deep link -> register -> instructions -> attempt -> autosave -> r
   // Submit the exercise
   await clickText(w, "button", "Terminar ejercicio", w.document.getElementById("labStrip")!);
   await confirmModal(w, "Enviar y calificar");
-  await waitFor(() => stripText(w).includes("Puntaje: 10 / 10") && stripText(w).includes("Calificado"), "graded exercise with per-check list");
-  assert.match(stripText(w), /El total es correcto/);
-  assert.match(stripText(w), /Usa SUMA/);
+  await waitFor(() => dockText(w).includes("Puntaje: 10 / 10") && dockText(w).includes("Calificado"), "graded exercise with per-check list");
+  assert.match(dockText(w), /El total es correcto/);
+  assert.match(dockText(w), /Usa SUMA/);
+  assert.equal(w.document.getElementById("instrCard").hidden, false, "the card opens by itself to show the score");
   assert.equal(w.Lab.isReadOnly(), true);
   assert.equal(byText(w.document.getElementById("labStrip"), "button", "Terminar ejercicio").disabled, true);
   // Every mutation path is blocked in read-only mode
@@ -512,4 +543,317 @@ test("admin: results list, filters and attempt detail with the submitted workboo
   assert.deepEqual(errorsSeen(), []);
   w.close();
   s.close();
+});
+
+/* ---------- Staff console: roles, sidebar, users, forced password change, builder, markdown ---------- */
+const navLabels = (w: any) => [...w.document.querySelectorAll(".st-nav a")].map((a: any) => (a.textContent || "").trim());
+
+test("staff: the sidebar is role-aware (teachers never see Usuarios) and the dashboard loads", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const teacher = await env.makeUser(admin, "profe.sidebar@example.com", "teacher", "Profe Sidebar");
+
+  const a = openPage({ cookie: admin }, base + "#/admin");
+  await boot(a);
+  await waitFor(() => navLabels(a).length > 0, "admin sidebar");
+  assert.deepEqual(navLabels(a), ["Panel", "Ejercicios", "Exámenes", "Resultados", "Usuarios"]);
+  await waitFor(() => viewText(a).includes("Intentos por día") && viewText(a).includes("Exámenes más usados"), "dashboard sections");
+  assert.ok(viewText(a).includes("Todo el contenido"));
+  assert.ok(a.document.querySelector(".chart"), "the attempts chart is inline SVG");
+  assert.match(viewText(a), /Acciones rápidas/);
+  // collapsible sidebar remembers its state
+  (a.document.querySelector(".st-collapse") as HTMLElement).click();
+  assert.equal(a.document.querySelector(".staff").classList.contains("collapsed"), true);
+  assert.equal(a.localStorage.getItem("gridlab.sidebar"), "collapsed");
+  assert.equal(byText(a.document.getElementById("labBar"), "a", "Administración") !== undefined, true);
+
+  const t = openPage({ cookie: teacher }, base + "#/admin");
+  await boot(t);
+  await waitFor(() => navLabels(t).length > 0, "teacher sidebar");
+  assert.deepEqual(navLabels(t), ["Panel", "Ejercicios", "Exámenes", "Resultados"]);
+  assert.ok(viewText(t).includes("Solo tu contenido"));
+  assert.equal(byText(t.document.getElementById("labBar"), "a", "Mi panel") !== undefined, true);
+  t.location.hash = "#/admin/usuarios";
+  await waitFor(() => viewText(t).includes("No tienes permisos"), "teachers cannot open the users screen");
+  assert.deepEqual(errorsSeen(), []);
+  a.close(); t.close();
+});
+
+test("staff: admin creates a user from the modal, duplicate e-mail is explained, role badges show", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const w = openPage({ cookie: admin }, base + "#/admin/usuarios");
+  await boot(w);
+  await waitFor(() => viewText(w).includes("Nuevo usuario") && w.document.querySelector(".tbl"), "users table");
+  await clickText(w, "button", "Nuevo usuario");
+  const modal = await waitFor(() => w.document.querySelector(".lab-modal"), "create modal");
+  await clickText(w, "button", "Generar", modal);
+  const pw = labelled(modal, "Contraseña temporal");
+  assert.ok(pw.value.length >= 12, "the generator fills the temporary password");
+  assert.equal(labelled(modal, "Debe cambiar la contraseña al ingresar").checked, true, "must-change defaults to on");
+  byText(modal, "button", "Crear usuario")!.click();
+  await waitFor(() => (modal.textContent || "").includes("Escribe el nombre"), "validation");
+  await fill(w, modal, "Nombre", "Carlos Docente");
+  await fill(w, modal, "Correo electrónico", "carlos.docente@example.com");
+  await fill(w, modal, "Rol", "teacher");
+  byText(modal, "button", "Crear usuario")!.click();
+  await waitFor(() => !w.document.querySelector(".lab-modal"), "modal closed after creating");
+  await waitFor(() => viewText(w).includes("carlos.docente@example.com"), "new row listed");
+  const row = [...view(w).querySelectorAll("tbody tr")].find((r: any) => (r.textContent || "").includes("carlos.docente@example.com")) as HTMLElement;
+  assert.match(row.textContent || "", /Profesor/);
+  assert.match(row.textContent || "", /Contraseña temporal/);
+  // duplicate e-mail
+  await clickText(w, "button", "Nuevo usuario");
+  const m2 = await waitFor(() => w.document.querySelector(".lab-modal"), "second modal");
+  await fill(w, m2, "Nombre", "Otro");
+  await fill(w, m2, "Correo electrónico", "carlos.docente@example.com");
+  await clickText(w, "button", "Generar", m2);
+  byText(m2, "button", "Crear usuario")!.click();
+  await waitFor(() => (m2.textContent || "").includes("Ya existe una cuenta con ese correo"), "EMAIL_TAKEN message");
+  byText(m2, "button", "Cancelar")!.click();
+  // filters: role + search
+  setValue(w, labelled(view(w), "Rol"), "teacher");
+  await waitFor(() => { const rows = [...view(w).querySelectorAll("tbody tr")]; return rows.length > 0 && rows.every((r: any) => /Profesor/.test(r.textContent || "")); }, "role filter");
+  // an admin cannot deactivate themselves (CANNOT_MODIFY_SELF is explained, the menu item is disabled)
+  const own = [...view(w).querySelectorAll("tbody tr")].find((r: any) => (r.textContent || "").includes("(tú)")) as HTMLElement | undefined;
+  assert.equal(own, undefined, "the admin is filtered out by role=teacher");
+  assert.deepEqual(errorsSeen(), []);
+  w.close();
+});
+
+test("first login: a temporary password forces the 'Cambia tu contraseña' screen, then continues to the intended route", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const created = await env.call("POST", "/api/admin/users", { cookie: admin, payload: { name: "Temporal Uno", email: "temporal.uno@example.com", password: "temporal-123", role: "student" } });
+  assert.equal(created.statusCode, 201);
+  const cookie = await env.login("temporal.uno@example.com", "temporal-123");
+  // the API itself blocks everything else
+  const blocked = await env.call("GET", "/api/exams", { cookie });
+  assert.equal(blocked.statusCode, 403);
+  assert.equal(blocked.json().error.code, "PASSWORD_CHANGE_REQUIRED");
+
+  const w = openPage({ cookie }, base + "#/resultados");
+  await boot(w);
+  await waitFor(() => viewText(w).includes("Cambia tu contraseña"), "forced screen");
+  assert.equal(hashOf(w), "#/resultados", "the intended route is kept");
+  const bar = w.document.getElementById("labBar");
+  assert.equal(byText(bar, "a", "Exámenes"), undefined, "no navigation while the password is temporary");
+  assert.ok(byText(bar, "button", "Cerrar sesión"));
+  // validation first
+  byText(view(w), "button", "Guardar y continuar")!.click();
+  await waitFor(() => viewText(w).includes("Escribe tu contraseña actual"), "required current password");
+  await fill(w, view(w), "Contraseña actual", "temporal-123");
+  await fill(w, view(w), "Nueva contraseña", "temporal-123");
+  await fill(w, view(w), "Repite la nueva contraseña", "temporal-123");
+  byText(view(w), "button", "Guardar y continuar")!.click();
+  await waitFor(() => viewText(w).includes("distinta de la actual"), "new password must differ");
+  await fill(w, view(w), "Contraseña actual", "equivocada-999");
+  await fill(w, view(w), "Nueva contraseña", "Nueva-clave-2030");
+  await fill(w, view(w), "Repite la nueva contraseña", "Nueva-clave-2030");
+  assert.match(viewText(w), /Fuerte|Buena/, "strength hint");
+  byText(view(w), "button", "Guardar y continuar")!.click();
+  await waitFor(() => viewText(w).includes("contraseña actual no es correcta"), "WRONG_CURRENT_PASSWORD");
+  await fill(w, view(w), "Contraseña actual", "temporal-123");
+  byText(view(w), "button", "Guardar y continuar")!.click();
+  await waitFor(() => viewText(w).includes("Mis resultados") && !viewText(w).includes("Cambia tu contraseña"), "continues to the requested screen");
+  assert.equal(hashOf(w), "#/resultados");
+  assert.ok(byText(w.document.getElementById("labBar"), "a", "Exámenes"), "navigation is back");
+  const after = await env.call("POST", "/api/auth/login", { payload: { email: "temporal.uno@example.com", password: "Nueva-clave-2030" } });
+  assert.equal(after.statusCode, 200);
+  assert.equal(after.json().mustChangePassword, false);
+  assert.deepEqual(errorsSeen(), []);
+  w.close();
+});
+
+test("first login: a 403 PASSWORD_CHANGE_REQUIRED during a session also forces the screen", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  await env.call("POST", "/api/admin/users", { cookie: admin, payload: { name: "Temporal Dos", email: "temporal.dos@example.com", password: "temporal-123", role: "student" } });
+  const cookie = await env.login("temporal.dos@example.com", "temporal-123");
+  const w = openPage({ cookie }, base + "#/practica");
+  await boot(w);
+  await waitFor(() => viewText(w).includes("Cambia tu contraseña"), "forced even on the practice route");
+  w.close();
+});
+
+test("profile menu: change name and open the password dialog", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const cookie = await env.makeUser(admin, "perfil@example.com", "student", "Perfil Uno");
+  const w = openPage({ cookie }, base + "#/examenes");
+  await boot(w);
+  const chip = await waitFor(() => w.document.querySelector("#labBar button.user"), "user chip");
+  chip.click();
+  const menu = await waitFor(() => w.document.querySelector(".pop-menu"), "profile menu");
+  assert.equal(chip.getAttribute("aria-expanded"), "true");
+  assert.ok(byText(menu, "button", "Mi perfil") && byText(menu, "button", "Cambiar contraseña") && byText(menu, "button", "Cerrar sesión"));
+  byText(menu, "button", "Mi perfil")!.click();
+  const modal = await waitFor(() => w.document.querySelector(".lab-modal"), "profile dialog");
+  await fill(w, modal, "Nombre", "Perfil Renombrado");
+  byText(modal, "button", "Guardar nombre")!.click();
+  await waitFor(() => !w.document.querySelector(".lab-modal") && (w.document.querySelector("#labBar .user .name")!.textContent || "") === "Perfil Renombrado", "name updated in the bar");
+  const me = (await env.call("GET", "/api/auth/me", { cookie })).json();
+  assert.equal(me.name, "Perfil Renombrado");
+  w.close();
+});
+
+test("exam builder: two sections, pick count against the pool, points override and the PUT /blocks payload", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const ids: string[] = [];
+  for (const n of [11, 12, 13]) {
+    const r = await env.call("POST", "/api/admin/exercises", { cookie: admin, payload: { ...exerciseBody(n), status: "published", difficulty: n === 11 ? "easy" : "hard", tags: ["builder"] } });
+    assert.equal(r.statusCode, 201, r.body);
+    ids.push(r.json().id);
+  }
+  const exam = (await env.call("POST", "/api/admin/exams", { cookie: admin, payload: { title: "Constructor", durationMinutes: 30, blocks: [{ title: "Primera", pickCount: null, shuffle: false, exercises: [{ exerciseId: ids[0] }] }] } })).json();
+
+  const w = openPage({ cookie: admin }, base + "#/admin/examenes/" + exam.id);
+  await boot(w);
+  await waitFor(() => labelled(view(w), "Título").value === "Constructor", "builder loaded");
+  assert.equal(w.document.querySelectorAll('.xb-tabs [role="tab"]').length, 6, "six sections as tabs");
+  await clickText(w, "button", "Secciones y ejercicios");
+  await waitFor(() => w.document.querySelectorAll(".blk").length === 1, "one section");
+  await clickText(w, "button", "Agregar sección");
+  await waitFor(() => w.document.querySelectorAll(".blk").length === 2, "two sections");
+  const blk2 = () => w.document.querySelectorAll(".blk")[1] as HTMLElement;
+  await fill(w, blk2(), "Nombre de la sección", "Segunda parte");
+  // picker: filter by difficulty, add two exercises to the active (new) section
+  await waitFor(() => [...w.document.querySelectorAll("button")].find((b: any) => b.getAttribute("aria-label") === "Agregar Ejercicio 12"), "picker rendered");
+  (byLabel(w, "Agregar Ejercicio 12") as HTMLElement).click();
+  (byLabel(w, "Agregar Ejercicio 13") as HTMLElement).click();
+  await waitFor(() => blk2().querySelectorAll(".blk-list li").length === 2, "two exercises in section 2");
+  assert.equal(byLabel(w, "Agregar Ejercicio 11"), undefined, "an exercise already in the exam cannot be added twice");
+  // override and pick count with live validation
+  const ov = blk2().querySelector('input[aria-label="Puntos en este examen para Ejercicio 12"]') as HTMLInputElement;
+  setValue(w, ov, "4");
+  setValue(w, labelled(blk2(), "Ejercicios por intento"), "n");
+  setValue(w, labelled(blk2(), "Cantidad"), "5");
+  await waitFor(() => (blk2().textContent || "").includes("Pides 5 pero solo hay 2"), "live pick validation");
+  byText(w.document, "button", "Guardar cambios")!.click();
+  await waitFor(() => (viewText(w)).includes("Revisa los campos marcados"), "save is blocked while a pick exceeds the pool");
+  setValue(w, labelled(blk2(), "Cantidad"), "1");
+  await waitFor(() => !(blk2().textContent || "").includes("Pides 5"), "error cleared");
+  byText(w.document, "button", "Guardar cambios")!.click();
+  await waitFor(() => (w.document.getElementById("toast")!.textContent || "").includes("Examen guardado"), "saved", 8000);
+  const saved = (await env.call("GET", `/api/admin/exams/${exam.id}`, { cookie: admin })).json();
+  assert.equal(saved.blocks.length, 2);
+  assert.equal(saved.blocks[1].title, "Segunda parte");
+  assert.equal(saved.blocks[1].pickCount, 1);
+  assert.equal(saved.blocks[0].pickCount, null);
+  assert.deepEqual(saved.blocks[1].exercises.map((e: any) => [e.exerciseId, e.pointsOverride]), [[ids[1], 4], [ids[2], null]]);
+  assert.equal(saved.blocks[0].id !== undefined, true);
+  // simulated draw: one exercise from section 2 plus the one of section 1
+  await waitFor(() => labelled(view(w), "Título").value === "Constructor", "builder reloaded after saving");
+  await clickText(w, "button", "Secciones y ejercicios");
+  const draw = await waitFor(() => { const b = byText(view(w), "button", "Simular sorteo"); return b && !b.disabled ? b : null; }, "draw button enabled when nothing is pending");
+  draw.click();
+  await waitFor(() => viewText(w).includes("Segunda parte") && viewText(w).includes("2 ejercicios") && viewText(w).includes("Sortear otra vez"), "draw preview shown");
+  // the publish checklist reflects the structure
+  await clickText(w, "button", "Publicación");
+  assert.match(view(w).querySelector(".checklist")!.textContent || "", /Tiene ejercicios publicados/);
+  assert.equal(view(w).querySelectorAll(".checklist .fail").length, 0);
+  assert.deepEqual(errorsSeen(), []);
+  w.close();
+});
+
+const byLabel = (w: any, label: string) => [...w.document.querySelectorAll("button")].find((b: any) => b.getAttribute("aria-label") === label);
+
+test("exam builder: unsaved-changes guard, access list and extra attempts", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const stu = await env.register("extra.alumno@example.com", "Extra Alumno");
+  assert.ok(stu);
+  const ex = (await env.call("POST", "/api/admin/exercises", { cookie: admin, payload: { ...exerciseBody(21), status: "published" } })).json();
+  const exam = (await env.call("POST", "/api/admin/exams", { cookie: admin, payload: { title: "Acceso", durationMinutes: 30, blocks: [{ title: "A", pickCount: null, shuffle: false, exercises: [{ exerciseId: ex.id }] }] } })).json();
+  const w = openPage({ cookie: admin }, base + "#/admin/examenes/" + exam.id);
+  await boot(w);
+  await waitFor(() => labelled(view(w), "Título").value === "Acceso", "builder");
+  assert.equal(w.document.querySelector(".xb-bar .dirty")!.hasAttribute("hidden"), true, "no unsaved badge at first");
+  setValue(w, labelled(view(w), "Título"), "Acceso (editado)");
+  assert.equal(w.document.querySelector(".xb-bar .dirty")!.hasAttribute("hidden"), false, "unsaved badge after editing");
+  // leaving asks for confirmation; staying keeps the form
+  w.location.hash = "#/admin/examenes";
+  await waitFor(() => w.document.querySelector(".lab-modal"), "leave guard dialog");
+  assert.match(w.document.querySelector(".lab-modal")!.textContent || "", /Cambios sin guardar/);
+  await confirmModal(w, "Seguir editando");
+  await waitFor(() => labelled(view(w), "Título").value === "Acceso (editado)", "still editing");
+
+  // access list
+  await clickText(w, "button", "Acceso e intentos extra");
+  await waitFor(() => { try { return labelled(view(w), "Correos de los estudiantes"); } catch { return null; } }, "access list");
+  await fill(w, view(w), "Correos de los estudiantes", "extra.alumno@example.com\ndesconocido@example.com");
+  await clickText(w, "button", "Guardar lista");
+  await waitFor(() => viewText(w).includes("1 estudiante(s) encontrados") && viewText(w).includes("desconocido@example.com"), "matched vs unknown");
+  const acc = (await env.call("GET", `/api/admin/exams/${exam.id}/access`, { cookie: admin })).json();
+  assert.equal(acc.entries.length >= 1, true);
+  // extra attempts for a student from the list
+  await fill(w, view(w), "Estudiante", "extra.alumno@example.com");
+  await fill(w, view(w), "Intentos extra", "2");
+  await fill(w, view(w), "Motivo (opcional)", "Falla de conexión");
+  await clickText(w, "button", "Conceder intentos");
+  await waitFor(() => viewText(w).includes("hasta 4 intentos"), "grant-attempt result");
+  await waitFor(() => viewText(w).includes("Falla de conexión") && viewText(w).includes("Revocar"), "override listed");
+  byText(view(w), "button", "Revocar")!.click();
+  await confirmModal(w, "Revocar");
+  await waitFor(() => viewText(w).includes("No hay intentos extra concedidos"), "override revoked");
+  // unknown student is explained
+  await fill(w, view(w), "Estudiante", "nadie@example.com");
+  await clickText(w, "button", "Conceder intentos");
+  await waitFor(() => viewText(w).includes("No encuentro a ese estudiante"), "unknown student");
+  setValue(w, labelled(view(w), "Título"), "Acceso");
+  assert.deepEqual(errorsSeen(), []);
+  w.close();
+});
+
+test("student: exam instructions render markdown-lite safely (no raw HTML, no links)", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const ex = (await env.call("POST", "/api/admin/exercises", { cookie: admin, payload: { ...exerciseBody(31), status: "published" } })).json();
+  const evil = '# Hola\n**negrita** y *cursiva*\n- <img src=x onerror="window.__pwned=1">\n- [link](javascript:window.__pwned=1)\n<script>window.__pwned=1</script>\n`<b>codigo</b>`';
+  const exam = (await env.call("POST", "/api/admin/exams", { cookie: admin, payload: { title: "Seguro", durationMinutes: 30, instructions: evil, blocks: [{ title: "A", pickCount: null, shuffle: false, exercises: [{ exerciseId: ex.id }] }] } })).json();
+  const pub = await env.call("PUT", `/api/admin/exams/${exam.id}`, { cookie: admin, payload: { status: "published" } });
+  assert.equal(pub.statusCode, 200, pub.body);
+  const cookie = await env.register("lector.seguro@example.com", "Lector");
+  const w = openPage({ cookie }, base + "#/examenes/" + exam.id);
+  await boot(w);
+  const md = await waitFor(() => w.document.querySelector(".md"), "rendered instructions");
+  assert.equal(md.querySelector("img, script, iframe, a, svg, object"), null, "no dangerous elements");
+  assert.equal(md.querySelectorAll("strong").length, 1);
+  assert.equal(md.querySelectorAll("em").length, 1);
+  assert.equal(md.querySelectorAll("h3").length, 1, "# becomes a heading");
+  assert.equal(md.querySelectorAll("li").length, 2);
+  assert.match(md.textContent || "", /<img src=x onerror=/, "the markup is shown as literal text");
+  assert.match(md.textContent || "", /<script>window\.__pwned=1<\/script>/);
+  assert.equal(w.__pwned, undefined, "nothing executed");
+  assert.equal([...view(w).querySelectorAll("*")].some((e: any) => [...e.attributes].some((a: any) => /^on/i.test(a.name))), false, "no inline handlers");
+  w.close();
+});
+
+test("student: access code, hidden results and feedback modes are honoured", async () => {
+  const admin = await env.login(ADMIN.email, ADMIN.password);
+  const ex = (await env.call("POST", "/api/admin/exercises", { cookie: admin, payload: { ...exerciseBody(41), status: "published" } })).json();
+  const exam = (await env.call("POST", "/api/admin/exams", { cookie: admin, payload: {
+    title: "Con código", durationMinutes: 30, accessCode: "SECRETO", feedbackMode: "none", resultMode: "hidden", maxAttempts: 1,
+    blocks: [{ title: "Sección única", pickCount: null, shuffle: false, exercises: [{ exerciseId: ex.id }] }] } })).json();
+  await env.call("PUT", `/api/admin/exams/${exam.id}`, { cookie: admin, payload: { status: "published" } });
+  const cookie = await env.register("con.codigo@example.com", "Con Codigo");
+  const w = openPage({ cookie }, base + "#/examenes/" + exam.id);
+  await boot(w);
+  await waitFor(() => { try { return labelled(view(w), "Código de acceso"); } catch { return null; } }, "code field");
+  setChecked(w, labelled(view(w), "He leído y acepto las instrucciones"), true);
+  byText(view(w), "button", "Comenzar intento")!.click();
+  await waitFor(() => viewText(w).includes("Escribe el código de acceso"), "empty code");
+  await fill(w, view(w), "Código de acceso", "NOPE");
+  byText(view(w), "button", "Comenzar intento")!.click();
+  await waitFor(() => viewText(w).includes("código de acceso no es correcto"), "INVALID_ACCESS_CODE");
+  await fill(w, view(w), "Código de acceso", "SECRETO");
+  byText(view(w), "button", "Comenzar intento")!.click();
+  await waitFor(() => /^#\/intento\//.test(hashOf(w)) && stripText(w).includes("1 de 1 ejercicios"), "attempt started with the code");
+  typeInCell(w, "A1", "=PRODUCTO(B1,2)");
+  await clickText(w, "button", "Terminar ejercicio", w.document.getElementById("labStrip")!);
+  await confirmModal(w, "Enviar y calificar");
+  await waitFor(() => dockText(w).includes("Respuesta enviada"), "feedbackMode none shows no score");
+  assert.equal(dockText(w).includes("Puntaje"), false);
+  assert.equal(w.document.querySelector(".step .sc")!.textContent!.includes("/"), false, "no score in the stepper either");
+  await clickText(w, "button", "Finalizar examen", w.document.getElementById("labStrip")!);
+  await confirmModal(w, "Finalizar examen");
+  await waitFor(() => viewText(w).includes("Tu intento fue enviado") && viewText(w).includes("la nota la publica tu docente"), "hidden result message");
+  assert.equal(viewText(w).includes("%"), false, "no grade leaks into the screen");
+  w.location.hash = "#/examenes";
+  await waitFor(() => viewText(w).includes("la nota la publica tu docente"), "card hides the result too");
+  assert.deepEqual(errorsSeen(), []);
+  w.close();
 });

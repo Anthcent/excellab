@@ -1,6 +1,6 @@
 import { createHash, randomBytes } from "node:crypto";
 import type { FastifyReply } from "fastify";
-import type { Db } from "../db/db.js";
+import type { Db, Queryable } from "../db/db.js";
 import { PUBLIC_USER_COLUMNS, toPublicUser, type PublicUser, type UserRow } from "./users.js";
 
 export const SESSION_COOKIE = "gl_session";
@@ -43,6 +43,12 @@ export async function deleteSession(db: Db, token: string) {
   await db.query("DELETE FROM sessions WHERE id = $1", [hashToken(token)]);
 }
 
+/** Revokes every session of a user, optionally keeping the one identified by `keepToken`. */
+export async function deleteUserSessions(db: Queryable, userId: string, keepToken?: string) {
+  if (keepToken) await db.query("DELETE FROM sessions WHERE user_id = $1 AND id <> $2", [userId, hashToken(keepToken)]);
+  else await db.query("DELETE FROM sessions WHERE user_id = $1", [userId]);
+}
+
 /** Resolves a token to its user. Renews the session (sliding expiry) once less than half of the TTL remains. */
 export async function resolveSession(
   db: Db,
@@ -53,7 +59,7 @@ export async function resolveSession(
   const { rows } = await db.query<UserRow & { expires_at: Date }>(
     `SELECT ${PUBLIC_USER_COLUMNS}, s.expires_at
        FROM sessions s JOIN users u ON u.id = s.user_id
-      WHERE s.id = $1 AND s.expires_at > now()`,
+      WHERE s.id = $1 AND s.expires_at > now() AND u.active`,
     [id],
   );
   const row = rows[0];

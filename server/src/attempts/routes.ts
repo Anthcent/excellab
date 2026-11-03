@@ -15,7 +15,7 @@ import {
 
 const idParams = z.object({ id: z.uuid() });
 const exerciseParams = z.object({ id: z.uuid(), exerciseId: z.uuid() });
-const startBody = z.object({ accepted: z.boolean().optional() }).default({});
+const startBody = z.object({ accepted: z.boolean().optional(), accessCode: z.string().max(100).optional() }).default({});
 const workbookBody = z.object({ workbook: z.unknown() });
 
 export async function studentRoutes(app: FastifyInstance, ctx: AppContext) {
@@ -32,7 +32,7 @@ export async function studentRoutes(app: FastifyInstance, ctx: AppContext) {
     const { id } = idParams.parse(request.params);
     const body = startBody.parse(request.body ?? {});
     const user = currentUser(request);
-    const started = await startAttempt(ctx, user, id, body.accepted === true);
+    const started = await startAttempt(ctx, user, id, body.accepted === true, body.accessCode);
     const view = await attemptView(ctx, started.attemptId, user.id);
     return reply.status(started.resumed ? 200 : 201).send({ ...view, resumed: started.resumed });
   });

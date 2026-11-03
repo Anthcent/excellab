@@ -279,3 +279,224 @@ test("workbookKey ignores the cursor position only", () => {
   b.sheets[0].cells.A1.v = "2";
   assert.notEqual(C.workbookKey(a), C.workbookKey(b));
 });
+
+/* ---------- staff console additions ---------- */
+test("routes: users are admin-only, analytics and dashboard are staff routes", () => {
+  assert.equal(C.matchRoute("#/admin/usuarios").name, "adminUsers");
+  assert.equal(C.matchRoute("#/admin/usuarios").access, "sysadmin");
+  const a = C.matchRoute("#/admin/examenes/ab-12/analiticas");
+  assert.deepEqual([a.name, a.params.id, a.access], ["adminExamAnalytics", "ab-12", "admin"]);
+  assert.equal(C.matchRoute("#/admin/examenes/nuevo").name, "adminExamNew");
+  assert.equal(C.matchRoute("#/admin").name, "adminHome");
+  assert.equal(C.isStaff({ role: "teacher" }), true);
+  assert.equal(C.isStaff({ role: "student" }), false);
+  assert.equal(C.isStaff(null), false);
+  assert.equal(C.roleLabel("admin"), "Administrador");
+});
+
+test("markdown-lite: headings, lists, bold, italic and code become tokens", () => {
+  const blocks = C.parseMarkdownLite("# Titulo\nTexto con **negrita**, *cursiva* y `codigo`.\n\n- uno\n- dos **x**\n\nfin");
+  assert.deepEqual(blocks.map((b: any) => b.t), ["h", "p", "ul", "p"]);
+  assert.equal(blocks[0].level, 1);
+  assert.deepEqual(blocks[1].inline.map((t: any) => t.k), ["text", "b", "text", "i", "text", "code", "text"]);
+  assert.equal(blocks[2].items.length, 2);
+  assert.deepEqual(blocks[2].items[1].map((t: any) => t.k), ["text", "b"]);
+});
+
+test("markdown-lite: formulas with asterisks are not italicised and HTML stays plain text", () => {
+  const p = C.parseMarkdownLite("Calcula =A1*B1*C1 y 2 * 3")[0];
+  assert.deepEqual(p.inline.map((t: any) => t.k), ["text"]);
+  assert.equal(p.inline[0].s, "Calcula =A1*B1*C1 y 2 * 3");
+  assert.equal(C.parseMarkdownLite("")[0], undefined);
+});
+
+test("markdown-lite: XSS attempts never produce anything but text tokens", () => {
+  const attacks = [
+    '<script>alert(1)</script>',
+    '<img src=x onerror="alert(1)">',
+    '[click](javascript:alert(1))',
+    '**<b onmouseover=alert(1)>x</b>**',
+    '- <iframe src="//evil"></iframe>',
+    '# <svg/onload=alert(1)>',
+    '`</code><script>alert(1)</script>`',
+    '"><img src=x onerror=alert(1)>',
+  ];
+  const walk = (blocks: any[]) => blocks.flatMap((b) => (b.t === "ul" ? b.items.flat() : b.inline));
+  for (const a of attacks) {
+    const tokens = walk(C.parseMarkdownLite(a));
+    assert.ok(tokens.every((t: any) => ["text", "b", "i", "code"].includes(t.k)), a);
+    // the markup survives only as literal characters inside token text
+    assert.equal(tokens.map((t: any) => t.s).join("").includes("<") || !a.includes("<"), true, a);
+    assert.ok(Object.keys(tokens[0] || {}).every((k) => k === "k" || k === "s"), "tokens carry no attributes");
+  }
+  const huge = C.parseMarkdownLite("a".repeat(50000));
+  assert.ok(huge[0].inline[0].s.length <= 20000, "input is capped");
+});
+
+test("markdown-lite helper bar inserts markers around the selection", () => {
+  assert.deepEqual(C.applyMdFormat("hola mundo", 5, 10, "bold"), { value: "hola **mundo**", start: 7, end: 12 });
+  assert.equal(C.applyMdFormat("x", 0, 0, "italic").value, "*texto*x");
+  assert.equal(C.applyMdFormat("uno\ndos", 4, 7, "list").value, "uno\n- dos");
+  assert.equal(C.applyMdFormat("uno", 0, 3, "heading").value, "# uno");
+});
+
+test("tags: normalized, unique and capped at 10", () => {
+  let tags: string[] = [];
+  for (const t of ["  Funciones ", "FUNCIONES", "suma", ""]) tags = C.addTag(tags, t).tags;
+  assert.deepEqual(tags, ["funciones", "suma"]);
+  assert.equal(C.addTag(tags, "suma").reason, "Esa etiqueta ya está agregada.");
+  for (let i = 0; i < 12; i++) tags = C.addTag(tags, "t" + i).tags;
+  assert.equal(tags.length, 10);
+  assert.equal(C.addTag(tags, "otra").added, false);
+  assert.equal(C.normalizeTag("x".repeat(50)).length, 30);
+});
+
+test("access list e-mails: split, lowercase, dedupe and flag invalid ones", () => {
+  const r = C.parseEmails("Ana@Example.com, luis@example.com;\nana@example.com  mal@correo  ");
+  assert.deepEqual(r.valid, ["ana@example.com", "luis@example.com"]);
+  assert.deepEqual(r.invalid, ["mal@correo"]);
+});
+
+test("password helpers: generator, strength and change validation", () => {
+  let seed = 7;
+  const rnd = (n: number) => { seed = (seed * 1103515245 + 12345) & 0x7fffffff; return seed % n; };
+  const pw = C.generatePassword(rnd, 14);
+  assert.equal(pw.length, 14);
+  assert.ok(/[a-z]/.test(pw) && /[A-Z]/.test(pw) && /\d/.test(pw) && /[^A-Za-z0-9]/.test(pw));
+  assert.ok(!/[0Ol1I]/.test(pw), "no ambiguous characters");
+  assert.equal(C.generateAccessCode(rnd, 6).length, 6);
+  assert.equal(C.passwordStrength("abc").label, "Muy corta");
+  assert.ok(C.passwordStrength("Abcdefgh1234!").score >= 3);
+  assert.ok(C.passwordStrength("aaaaaaaa").score <= 1);
+  assert.deepEqual(Object.keys(C.validateChangePassword({ current: "", next: "123", confirm: "x" })).sort(), ["confirm", "current", "next"]);
+  assert.equal(C.validateChangePassword({ current: "abcdefgh", next: "abcdefgh", confirm: "abcdefgh" }).next, "La nueva contraseña debe ser distinta de la actual.");
+  assert.deepEqual(C.validateChangePassword({ current: "old-pass", next: "new-pass-1", confirm: "new-pass-1" }), {});
+  assert.deepEqual(Object.keys(C.validateUserForm({ name: "", email: "x", role: "boss", password: "1" })).sort(), ["email", "name", "password", "role"]);
+  assert.deepEqual(C.validateUserForm({ name: "Ana", role: "teacher" }, { needEmail: false, needPassword: false }), {});
+});
+
+const examFixture = () => ({
+  blocks: [
+    { id: "b1", title: "Básicas", pickCount: 2, shuffle: true, exercises: [
+      { exerciseId: "e1", title: "Uno", points: 10, status: "published", pointsOverride: null },
+      { exerciseId: "e2", title: "Dos", points: 10, status: "published", pointsOverride: 5 },
+      { exerciseId: "e3", title: "Tres", points: 10, status: "draft", pointsOverride: null },
+    ] },
+    { id: "b2", title: "Todas", pickCount: null, shuffle: false, exercises: [{ exerciseId: "e4", title: "Cuatro", points: 20, status: "published", pointsOverride: null }] },
+  ],
+});
+
+test("exam builder: blocks round trip into the PUT /blocks payload", () => {
+  const blocks = C.blocksFromExam(examFixture());
+  assert.equal(blocks[0].pick, "2");
+  assert.equal(blocks[1].pick, "");
+  assert.equal(blocks[0].exercises[1].pointsOverride, "5");
+  blocks[0].exercises[0].pointsOverride = "7,5";
+  blocks[1].title = "  Final ";
+  blocks.push(C.newBlock("Nueva"));
+  const body = C.blocksToPayload(blocks);
+  assert.deepEqual(body.blocks[0], {
+    id: "b1", title: "Básicas", pickCount: 2, shuffle: true,
+    exercises: [{ exerciseId: "e1", pointsOverride: 7.5 }, { exerciseId: "e2", pointsOverride: 5 }, { exerciseId: "e3" }],
+  });
+  assert.deepEqual(body.blocks[1], { id: "b2", title: "Final", pickCount: null, shuffle: false, exercises: [{ exerciseId: "e4" }] });
+  assert.equal("id" in body.blocks[2], false, "new blocks carry no id");
+  assert.deepEqual(body.blocks[2].exercises, []);
+});
+
+test("exam builder: validation against the published pool and totals", () => {
+  const blocks = C.blocksFromExam(examFixture());
+  assert.equal(C.validateBlocks(blocks).ok, true);
+  blocks[0].pick = "3"; // only 2 published
+  const v = C.validateBlocks(blocks);
+  assert.equal(v.ok, false);
+  assert.match(v.errors[blocks[0].key].pick, /solo hay 2/);
+  blocks[0].pick = "0";
+  assert.match(C.validateBlocks(blocks).errors[blocks[0].key].pick, /mayor o igual a 1/);
+  blocks[0].pick = "2"; blocks[1].title = " ";
+  assert.ok(C.validateBlocks(blocks).errors[blocks[1].key].title);
+  blocks[1].title = "ok"; blocks[0].exercises[0].pointsOverride = "-3";
+  assert.ok(C.validateBlocks(blocks).errors[blocks[0].key].override[0]);
+  blocks[0].exercises[0].pointsOverride = "";
+  blocks[1].exercises.push({ ...blocks[0].exercises[0] });
+  assert.ok(C.validateBlocks(blocks).errors[blocks[1].key].dup[1], "the same exercise twice is flagged");
+  blocks[1].exercises.pop();
+  const t = C.blockTotals(blocks);
+  assert.equal(t.poolSize, 3);
+  assert.equal(t.exercises, 3);        // 2 drawn from block 1 + 1 of block 2
+  assert.equal(t.poolPoints, 10 + 5 + 20);
+  assert.equal(Math.round(t.expectedPoints * 100) / 100, 15 + 20); // 2 x avg(10, 5) + 20
+});
+
+test("exam builder: publish checklist mirrors the server rules", () => {
+  const now = Date.parse("2030-01-01T10:00:00Z");
+  const form = { title: "Parcial", availableFrom: "", availableUntil: "" };
+  assert.equal(C.checklistReady(C.publishChecklist(form, [], now)), false);
+  const blocks = C.blocksFromExam(examFixture());
+  const ok = C.publishChecklist(form, blocks, now);
+  assert.equal(C.checklistReady(ok), true);
+  assert.equal(ok.find((i: any) => i.key === "drafts").ok, false, "drafts only warn");
+  assert.equal(ok.find((i: any) => i.key === "drafts").warn, true);
+  blocks[0].pick = "9";
+  assert.equal(C.checklistReady(C.publishChecklist(form, blocks, now)), false);
+  blocks[0].pick = "";
+  assert.equal(C.checklistReady(C.publishChecklist({ title: "", availableFrom: "", availableUntil: "" }, blocks, now)), false);
+  assert.equal(C.checklistReady(C.publishChecklist({ ...form, availableFrom: "2030-02-02T10:00", availableUntil: "2030-02-01T10:00" }, blocks, now)), false);
+  assert.equal(C.publishChecklist({ ...form, availableUntil: "2029-01-01T10:00" }, blocks, now).find((i: any) => i.key === "window").ok, false, "a window that already closed");
+});
+
+test("exam settings: form <-> payload with the new options", () => {
+  const form = C.examSettingsToForm({ title: "P", description: "d", durationMinutes: 30, maxAttempts: 3, scale: 10, passPercent: 50, gradePolicy: "last", status: "draft", availableFrom: null, availableUntil: null, shuffleBlocks: true, feedbackMode: "score", resultMode: "after_close", allowReview: true, accessCode: "AB12", restricted: true, ownerId: "o1" });
+  assert.deepEqual(C.validateExamSettings(form), {});
+  const p = C.examSettingsToPayload(form, { withOwner: true });
+  assert.deepEqual(p, { title: "P", description: "d", instructions: "", durationMinutes: 30, maxAttempts: 3, scale: 10, passPercent: 50, gradePolicy: "last", status: "draft", availableFrom: null, availableUntil: null, shuffleBlocks: true, feedbackMode: "score", resultMode: "after_close", allowReview: true, accessCode: "AB12", restricted: true, ownerId: "o1" });
+  assert.equal("pickCount" in p, false, "the deprecated pickCount is never sent");
+  assert.equal(C.examSettingsToPayload({ ...form, accessCode: "  " }).accessCode, null, "an empty code clears it");
+  assert.equal("ownerId" in C.examSettingsToPayload(form), false);
+  const bad = C.validateExamSettings({ ...form, feedbackMode: "x", resultMode: "y", description: "a".repeat(501) });
+  assert.deepEqual(Object.keys(bad).sort(), ["description", "feedbackMode", "resultMode"]);
+  assert.match(C.modeHelp(C.RESULT_MODES, "hidden"), /nunca ve su nota/);
+});
+
+test("exercise form: difficulty, tags, minutes and category reach the payload only when present", () => {
+  const f = { title: "A", points: "5", status: "draft", instructions: "", difficulty: "hard", tags: ["x"], estimatedMinutes: "7", category: " Lógica " };
+  assert.deepEqual(C.validateExerciseForm(f), {});
+  assert.deepEqual(C.exerciseFormToPayload(f, [], null), { title: "A", instructions: "", points: 5, status: "draft", checks: [], difficulty: "hard", tags: ["x"], estimatedMinutes: 7, category: "Lógica" });
+  assert.equal(C.exerciseFormToPayload({ ...f, estimatedMinutes: "", category: "" }, [], null).estimatedMinutes, null);
+  assert.deepEqual(Object.keys(C.validateExerciseForm({ ...f, difficulty: "x", estimatedMinutes: "0" })).sort(), ["difficulty", "estimatedMinutes"]);
+});
+
+test("charts: bar layout and area path stay inside the box", () => {
+  const L = C.barLayout([0, 3, 10], 300, 100, { l: 20, r: 0, t: 10, b: 20 });
+  assert.equal(L.max, 10);
+  assert.equal(L.bars[2].h, 70);
+  assert.equal(L.bars[2].y, 10);
+  assert.equal(L.bars[0].h, 0);
+  assert.ok(L.bars.every((b: any) => b.x >= 20 && b.x + b.w <= 300));
+  const A = C.areaPath([1, 2, 3], 100, 50, { l: 0, r: 0, t: 0, b: 0 });
+  assert.match(A.line, /^M0 /);
+  assert.match(A.area, /Z$/);
+  assert.equal(C.barLayout([], 100, 50).bars.length, 0);
+});
+
+test("instructions dock: initial state and student messages", () => {
+  assert.equal(C.instrInitialOpen(null, false), true);
+  assert.equal(C.instrInitialOpen(null, true), false, "closed by default on phones");
+  assert.equal(C.instrInitialOpen("closed", false), false);
+  assert.equal(C.instrInitialOpen("open", true), true);
+  assert.equal(C.instrInitialOpen("garbage", false), true);
+  assert.equal(C.instrPrefKey("abc"), "gridlab.instr.abc");
+  assert.match(C.hiddenResultMessage("after_close"), /al cerrar el examen/);
+  assert.match(C.hiddenResultMessage("hidden"), /docente/);
+  assert.match(C.feedbackSummary("none", { score: null }), /quedó registrada/);
+  assert.match(C.feedbackSummary("score", { score: 4, maxScore: 10 }), /4 de 10/);
+  assert.equal(C.pageInfo(80, 2, 25).from, 26);
+  assert.equal(C.pageInfo(0, 1, 25).from, 0);
+});
+
+test("error messages cover the new API codes", () => {
+  for (const code of ["ACCESS_CODE_REQUIRED", "INVALID_ACCESS_CODE", "PASSWORD_CHANGE_REQUIRED", "CANNOT_MODIFY_SELF", "LAST_ADMIN", "EXAM_IN_USE", "PICK_EXCEEDS_POOL"]) {
+    assert.ok(C.errorMessage({ code }).length > 10, code);
+  }
+  assert.equal(C.errorMessage({ code: "EMAIL_TAKEN" }), "Ya existe una cuenta con ese correo.");
+});

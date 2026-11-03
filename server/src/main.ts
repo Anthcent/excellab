@@ -3,7 +3,7 @@ import { createDb } from "./db/db.js";
 import { migrate } from "./db/migrate.js";
 import { seedAdmin } from "./auth/seedAdmin.js";
 import { deleteExpiredSessions } from "./auth/sessions.js";
-import { seedDemo } from "./seed/demo.js";
+import { seedDemo, seedDemoTeacher } from "./seed/demo.js";
 import { buildApp } from "./http/app.js";
 
 // Postgres can refuse connections briefly after reporting healthy; back off instead of crash-looping.
@@ -29,6 +29,7 @@ async function main() {
   await withRetry(() => migrate(db, undefined, log), log);
   await seedAdmin(db, config.adminEmail, config.adminPassword, log);
   if (config.seedDemo) await seedDemo(db, log);
+  if (config.seedDemo && !config.production) await seedDemoTeacher(db, log);
 
   const app = await buildApp({ db, config, logger: true });
 
